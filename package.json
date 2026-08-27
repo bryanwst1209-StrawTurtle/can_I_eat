@@ -1,0 +1,10 @@
+{
+  "name": "can-i-eat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "家用食品标签解读小程序——拍照识别包装，按家庭成员体质给出带证据链的判断",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "license": "UNLICENSED"
+}

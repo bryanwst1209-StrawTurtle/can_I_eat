@@ -1,0 +1,4 @@
+{
+  "desc": "仅家庭内部使用，不参与微信索引",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

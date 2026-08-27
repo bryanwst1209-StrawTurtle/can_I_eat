@@ -1,0 +1,32 @@
+<view class="container">
+  <view class="card">
+    <view class="card-title">拍一张包装</view>
+    <view class="muted">对准配料表和营养成分表，尽量拍清楚小字</view>
+
+    <button class="btn-primary" bindtap="拍照" disabled="{{识别中}}">拍照</button>
+    <button class="btn-secondary" bindtap="相册" disabled="{{识别中}}">从相册选</button>
+  </view>
+
+  <view class="card" wx:if="{{识别中}}">
+    <view class="muted">{{进度文案}}</view>
+  </view>
+
+  <view class="card bg-warn" wx:if="{{错误}}">
+    <view class="level-warn">{{错误.提示}}</view>
+    <view class="muted small" wx:if="{{错误.详情}}">{{错误.详情}}</view>
+    <button class="btn-secondary" wx:if="{{错误.可手动}}" bindtap="手动录入">手动填写关键数值</button>
+  </view>
+
+  <view class="card">
+    <view class="row" bindtap="去成员">
+      <text>家庭成员</text><text class="muted">配置谁要注意什么 ›</text>
+    </view>
+    <view class="row" bindtap="去历史">
+      <text>历史记录</text><text class="muted">看之前扫过的 ›</text>
+    </view>
+  </view>
+
+  <view class="muted small" style="padding: 16rpx 8rpx;">
+    结论依据包装标注与公开标准自动生成，仅供家庭参考，不构成医疗或营养建议。
+  </view>
+</view>

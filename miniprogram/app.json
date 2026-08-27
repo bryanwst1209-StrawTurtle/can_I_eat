@@ -1,0 +1,22 @@
+{
+  "pages": [
+    "pages/scan/scan",
+    "pages/confirm/confirm",
+    "pages/report/report",
+    "pages/family/family",
+    "pages/history/history"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#2f7a4d",
+    "navigationBarTitleText": "能吃吗",
+    "navigationBarTextStyle": "white"
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "本小程序不使用位置信息"
+    }
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

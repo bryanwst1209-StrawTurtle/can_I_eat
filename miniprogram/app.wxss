@@ -1,0 +1,60 @@
+page {
+  background: #f5f6f5;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  color: #1d2b23;
+}
+
+.container { padding: 24rpx; }
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.muted { color: #7b8a80; font-size: 26rpx; }
+.small { font-size: 24rpx; }
+
+/* 判定等级配色 */
+.level-ok     { color: #2f7a4d; }
+.level-info   { color: #2b6cb0; }
+.level-warn   { color: #c05621; }
+.level-danger { color: #c53030; }
+
+.bg-ok     { background: #e8f5ed; border-left: 8rpx solid #2f7a4d; }
+.bg-info   { background: #e8f0f9; border-left: 8rpx solid #2b6cb0; }
+.bg-warn   { background: #fdf0e4; border-left: 8rpx solid #c05621; }
+.bg-danger { background: #fce8e8; border-left: 8rpx solid #c53030; }
+
+.btn-primary {
+  background: #2f7a4d;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 32rpx;
+  margin-top: 16rpx;
+}
+.btn-secondary {
+  background: #fff;
+  color: #2f7a4d;
+  border: 2rpx solid #2f7a4d;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  margin-top: 16rpx;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #eef1ef;
+}
+.row:last-child { border-bottom: none; }
