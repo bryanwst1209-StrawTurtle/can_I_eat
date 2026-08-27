@@ -62,8 +62,10 @@ npm test
    权限全部设为**「仅管理端可读写」**——前端不直连数据库，所有读写走云函数。
 5. **建家庭记录**：在 `families` 集合手动加一条，`成员openid` 字段填家人的 openid 数组。
    openid 可以在「家庭成员」页面上看到（未加入家庭时会提示并显示）。
-6. **灌基础数据**：`node scripts/seed.js` 产出 `dist/*.jsonl`，在云开发控制台导入。
-   区划表需要先自行下载整理，见 [scripts/fetch-regions.md](scripts/fetch-regions.md)。
+6. **灌基础数据**：区划表要在国内网络自行下载（境外访问不了民政部和统计局），
+   放进 `data/raw/<年份>.html` 后跑 `node scripts/build-regions.js` 转换，
+   再跑 `node scripts/seed.js` 产出 `dist/*.jsonl`，在云开发控制台导入。
+   详见 [scripts/fetch-regions.md](scripts/fetch-regions.md)。
 7. **上传云函数**，在开发者工具里右键三个云函数目录分别上传并部署。
 8. **加体验成员**，把家人的微信号加进去（未认证个人主体上限 15 人）。
 
@@ -72,4 +74,4 @@ npm test
 - [ ] 从家里翻几个包装，把真实 SC 号填进 `test/sc.real-samples.test.js`，验证校验码算法与国标一致
 - [ ] 拍 20 张真实包装建 extractLabel 的识别回归集
 - [ ] 核对 `data/categories.json` 与官方《食品生产许可分类目录》
-- [ ] 下载并整理近四年行政区划表
+- [ ] 下载并整理近四年行政区划表（需国内网络）
