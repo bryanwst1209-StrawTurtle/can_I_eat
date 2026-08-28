@@ -40,7 +40,7 @@ Page({
   },
 
   编辑(e) {
-    const m = this.data.成员[e.currentTarget.dataset.序];
+    const m = this.data.成员[e.currentTarget.dataset.idx];
     this.进入编辑({ _id: m._id, 名称: m.名称, 关注点: [...(m.关注点 || [])] });
   },
 
@@ -54,7 +54,7 @@ Page({
   },
 
   切换关注点(e) {
-    const k = e.currentTarget.dataset.关注点;
+    const k = e.currentTarget.dataset.key;
     const 现有 = this.data.编辑中.关注点;
     const 新的 = 现有.includes(k) ? 现有.filter((x) => x !== k) : [...现有, k];
     this.setData({ '编辑中.关注点': 新的, 选中: 建选中表(新的) });

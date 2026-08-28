@@ -65,7 +65,7 @@ Page({
   },
 
   改字段(e) {
-    this.setData({ [e.currentTarget.dataset.字段]: e.detail.value });
+    this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
   },
 
   改基准(e) {
@@ -73,7 +73,7 @@ Page({
   },
 
   改营养(e) {
-    const i = Number(e.currentTarget.dataset.序);
+    const i = Number(e.currentTarget.dataset.idx);
     this.setData({ [`营养项[${i}].值`]: e.detail.value });
   },
 

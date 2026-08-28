@@ -17,7 +17,7 @@
   <view class="card" wx:if="{{!编辑中}}">
     <view class="card-title">家庭成员</view>
     <view class="muted small" wx:if="{{!成员.length && !加载中 && !错误}}">还没添加任何人</view>
-    <view class="row" wx:for="{{成员}}" wx:key="_id" data-序="{{index}}" bindtap="编辑">
+    <view class="row" wx:for="{{成员}}" wx:key="_id" data-idx="{{index}}" bindtap="编辑">
       <view>
         <view>{{item.名称}}</view>
         <view class="muted small">{{item.关注点.length ? item.关注点 : '无特别关注'}}</view>
@@ -38,7 +38,7 @@
       <view class="muted small">需要注意什么（可多选）</view>
       <view style="display:flex;flex-wrap:wrap;margin-top:12rpx;">
         <view wx:for="{{允许关注点}}" wx:key="*this"
-              data-关注点="{{item}}" bindtap="切换关注点"
+              data-key="{{item}}" bindtap="切换关注点"
               class="{{选中[item] ? 'bg-info level-info' : ''}}"
               style="padding:12rpx 24rpx;margin:0 16rpx 16rpx 0;border:2rpx solid #dfe5e1;border-radius:32rpx;font-size:26rpx;">
           {{item}}
