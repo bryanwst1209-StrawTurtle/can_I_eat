@@ -14,6 +14,9 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const MAX_ATTEMPTS = 2;
 
+/** 每多一张图就多一份 input token 和延迟，两张基本够覆盖配料表和 SC 号那两面 */
+const MAX_IMAGES = 3;
+
 exports.main = async (event) => {
   // 配置自检：在云开发控制台用 {"ping": true} 调用即可，不需要图片
   if (event && event.ping) return selfTest();
@@ -21,15 +24,17 @@ exports.main = async (event) => {
   const startedAt = Date.now();
   const remaining = () => TOTAL_BUDGET_MS - (Date.now() - startedAt);
 
-  const { fileID } = event || {};
-  if (!fileID) {
+  // fileIDs 是多图入口；fileID 单数保留，兼容旧版前端
+  const raw = (event && event.fileIDs) || (event && event.fileID ? [event.fileID] : []);
+  const fileIDs = raw.filter(Boolean).slice(0, MAX_IMAGES);
+  if (fileIDs.length === 0) {
     return { ok: false, errCode: 'NO_FILE', message: '未收到图片' };
   }
 
-  let imageBuffer;
+  let imageBuffers;
   try {
-    const res = await cloud.downloadFile({ fileID });
-    imageBuffer = res.fileContent;
+    const results = await Promise.all(fileIDs.map((id) => cloud.downloadFile({ fileID: id })));
+    imageBuffers = results.map((r) => r.fileContent);
   } catch (e) {
     return {
       ok: false, errCode: 'DOWNLOAD_FAILED',
@@ -44,7 +49,7 @@ exports.main = async (event) => {
     // 时间预算：宁可少试一次也不能让函数被平台掐断——
     // 被掐断时前端拿到的是「result expired」，连失败原因都看不到
     const budget = remaining();
-    if (budget < 6000) {
+    if (budget < 6000 + imageBuffers.length * 3000) {
       failures.push(`剩余时间不足（${(budget / 1000).toFixed(1)}秒），放弃第${attempt}次尝试`);
       break;
     }
@@ -52,7 +57,7 @@ exports.main = async (event) => {
     let content;
     let elapsedMs;
     try {
-      const r = await recognize(imageBuffer, EXTRACT_PROMPT, 'image/jpeg', Math.min(TIMEOUT_MS, budget - 3000));
+      const r = await recognize(imageBuffers, EXTRACT_PROMPT, 'image/jpeg', Math.min(TIMEOUT_MS, budget - 3000));
       content = r.content;
       elapsedMs = r.elapsedMs;
     } catch (e) {
@@ -79,6 +84,7 @@ exports.main = async (event) => {
       // 识别耗时暴露出来，用于判断是否需要换更快的模型
       elapsedMs,
       totalMs: Date.now() - startedAt,
+      imageCount: imageBuffers.length,
     };
   }
 

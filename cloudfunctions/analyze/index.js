@@ -16,7 +16,9 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
 exports.main = async (event) => {
-  const { label, fileID } = event || {};
+  const { label } = event || {};
+  // 兼容旧版前端传单个 fileID
+  const fileIDs = (event && event.fileIDs) || (event && event.fileID ? [event.fileID] : []);
   if (!label) return { ok: false, errCode: 'NO_LABEL', message: '未收到标签数据' };
 
   // 身份与家庭归属：服务端反查，不信任前端
@@ -58,7 +60,7 @@ exports.main = async (event) => {
       data: {
         familyId: ctx.familyId,
         createdBy: ctx.openid,
-        fileID: fileID || null,
+        fileIDs,
         productName: label.productName || null,
         label,
         normalized,

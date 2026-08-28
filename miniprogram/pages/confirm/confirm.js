@@ -123,7 +123,7 @@ Page({
     try {
       const { result } = await wx.cloud.callFunction({
         name: 'analyze',
-        data: { label, fileID: app.globalData.currentFileID || null },
+        data: { label, fileIDs: app.globalData.currentFileIDs || [] },
       });
 
       if (!result || !result.ok) {

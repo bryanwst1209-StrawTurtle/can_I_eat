@@ -1,10 +1,32 @@
 <view class="container">
   <view class="card">
-    <view class="card-title">拍一张包装</view>
-    <view class="muted">对准配料表和营养成分表，尽量拍清楚小字</view>
+    <view class="card-title">拍包装</view>
+    <view class="muted small">
+      配料表、营养成分表、生产许可证编号常常不在同一面。
+      一张拍不全就多拍一张，最多 {{maxImages}} 张，会当作同一件商品一起识别。
+    </view>
 
-    <button class="btn-primary" bindtap="takePhoto" disabled="{{scanning}}">拍照</button>
-    <button class="btn-secondary" bindtap="fromAlbum" disabled="{{scanning}}">从相册选</button>
+    <!-- 已拍的照片 -->
+    <view wx:if="{{shots.length}}" style="display:flex;flex-wrap:wrap;margin-top:20rpx;">
+      <view wx:for="{{shots}}" wx:key="*this" style="position:relative;margin:0 16rpx 16rpx 0;">
+        <image src="{{item}}" data-idx="{{index}}" bindtap="preview"
+               style="width:160rpx;height:160rpx;border-radius:12rpx;background:#eef1ef;" mode="aspectFill"/>
+        <view data-idx="{{index}}" bindtap="removeShot"
+              style="position:absolute;top:-10rpx;right:-10rpx;width:44rpx;height:44rpx;line-height:40rpx;text-align:center;background:#c53030;color:#fff;border-radius:50%;font-size:28rpx;">×</view>
+      </view>
+    </view>
+
+    <button class="btn-primary" bindtap="takePhoto" disabled="{{scanning || shots.length >= maxImages}}">
+      {{shots.length ? '再拍一张' : '拍照'}}
+    </button>
+    <button class="btn-secondary" bindtap="fromAlbum" disabled="{{scanning || shots.length >= maxImages}}">从相册选</button>
+    <view class="muted small" wx:if="{{shots.length >= maxImages}}" style="margin-top:12rpx;">
+      已经 {{maxImages}} 张了，再多识别会变慢
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{shots.length && !scanning}}">
+    <button class="btn-primary" bindtap="start">看这 {{shots.length}} 张，出结论</button>
   </view>
 
   <view class="card" wx:if="{{scanning}}">
@@ -13,7 +35,7 @@
       已用 {{elapsed}} 秒<text wx:if="{{hint}}"> · {{hint}}</text>
     </view>
     <view style="height:8rpx;background:#eef1ef;border-radius:4rpx;margin-top:16rpx;overflow:hidden;">
-      <view style="height:100%;background:#2f7a4d;width:{{elapsed >= 10 ? 95 : elapsed * 9.5}}%;transition:width 1s linear;"></view>
+      <view style="height:100%;background:#2f7a4d;width:{{elapsed >= 20 ? 95 : elapsed * 4.75}}%;transition:width 1s linear;"></view>
     </view>
   </view>
 

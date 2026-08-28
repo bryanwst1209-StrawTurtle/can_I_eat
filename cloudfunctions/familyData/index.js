@@ -100,7 +100,7 @@ async function listScans(event, ctx) {
     .orderBy('createdAt', 'desc')
     .skip(page * pageSize)
     .limit(pageSize)
-    .field({ productName: true, createdAt: true, fileID: true, 'judgement.overallLevel': true, 'judgement.overallText': true })
+    .field({ productName: true, createdAt: true, fileIDs: true, 'judgement.overallLevel': true, 'judgement.overallText': true })
     .get();
   return { ok: true, records: res.data || [], page, pageSize };
 }

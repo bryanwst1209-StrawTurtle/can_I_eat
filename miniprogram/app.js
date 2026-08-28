@@ -2,7 +2,7 @@ App({
   globalData: {
     envId: 'cloudbase-d0g5ogyub05b69f8f',
     currentLabel: null,
-    currentFileID: null,
+    currentFileIDs: [],
     currentResult: null,
   },
 

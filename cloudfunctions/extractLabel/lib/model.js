@@ -83,14 +83,21 @@ function endpoint(baseUrl) {
 
 /**
  * 调用视觉模型识别图片
- * @param {Buffer} imageBuffer
+ *
+ * 支持多张图：SC 号和营养成分表常常不在包装的同一个面，一张拍不全。
+ * 多张图在**同一次请求**里发给模型，由模型自己交叉参照并合并成一份 JSON——
+ * 分开调用再在代码里合并的话，两张图对同一字段给出不同值时只能靠猜，
+ * 而这里任何一次猜错都会直接影响给家人的结论。
+ *
+ * @param {Buffer|Buffer[]} images 一张或多张图片
  * @param {string} prompt 提取指令
- * @returns {Promise<string>} 模型返回的原始文本
+ * @returns {Promise<{content: string, elapsedMs: number, imageCount: number}>}
  */
-async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg', timeoutMs = TIMEOUT_MS) {
+async function recognize(images, prompt, mimeType = 'image/jpeg', timeoutMs = TIMEOUT_MS) {
   const cfg = readConfig();
   const startedAt = Date.now();
-  const dataUrl = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
+  const buffers = Array.isArray(images) ? images : [images];
+  if (buffers.length === 0) throw new Error('没有可识别的图片');
 
   const { status, text } = await postJSON(
     endpoint(cfg.MODEL_BASE_URL),
@@ -105,7 +112,10 @@ async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg', timeoutMs
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUrl } },
+          ...buffers.map((b) => ({
+            type: 'image_url',
+            image_url: { url: `data:${mimeType};base64,${b.toString('base64')}` },
+          })),
         ],
       }],
     },
@@ -130,7 +140,7 @@ async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg', timeoutMs
   if (typeof content !== 'string' || content.length === 0) {
     throw new Error('模型返回内容为空');
   }
-  return { content, elapsedMs };
+  return { content, elapsedMs, imageCount: buffers.length };
 }
 
 /**
