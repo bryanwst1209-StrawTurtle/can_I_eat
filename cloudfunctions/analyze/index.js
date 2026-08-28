@@ -6,7 +6,7 @@
  */
 
 const cloud = require('wx-server-sdk');
-const { 取家庭归属 } = require('./lib/auth');
+const { 取家庭归属, 鉴权失败响应 } = require('./lib/auth');
 const { normalize } = require('./lib/normalize');
 const { evaluate } = require('./lib/evaluate');
 const { 规则: 默认规则 } = require('./lib/rules');
@@ -24,14 +24,7 @@ exports.main = async (event) => {
   try {
     归属 = await 取家庭归属(cloud, db);
   } catch (e) {
-    return {
-      ok: false,
-      错误码: e.code || 'AUTH_FAILED',
-      提示: e.code === 'NOT_IN_FAMILY'
-        ? '这个微信号还没加入家庭，请把 openid 加到 families 集合里'
-        : '身份校验失败',
-      openid: e.openid,
-    };
+    return 鉴权失败响应(e);
   }
 
   // 只取本家庭的成员，规则表为全局共享
