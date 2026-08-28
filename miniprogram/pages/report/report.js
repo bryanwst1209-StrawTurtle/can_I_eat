@@ -53,6 +53,20 @@ Page({
     this.setData({ [`expanded.${id}`]: !this.data.expanded[id] });
   },
 
+  copyScCode() {
+    const code = (this.data.scCheck || {}).raw;
+    if (!code) return;
+    wx.setClipboardData({
+      data: code,
+      success: () => wx.showModal({
+        title: '编号已复制',
+        content: '粘贴到微信搜一搜或浏览器里搜这个编号，能看到持证企业和许可明细。本工具不替你判断真伪。',
+        showCancel: false,
+        confirmText: '知道了',
+      }),
+    });
+  },
+
   scanAgain() {
     wx.navigateBack({ delta: 99, fail: () => wx.reLaunch({ url: '/pages/scan/scan' }) });
   },

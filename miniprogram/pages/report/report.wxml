@@ -63,6 +63,7 @@
       <view class="muted small" wx:if="{{scCheck.dataVersion}}">
         查表依据：{{scCheck.dataVersion.source}} {{scCheck.dataVersion.date}}
       </view>
+      <button class="btn-secondary" bindtap="copyScCode">复制编号，自己去查</button>
     </block>
   </view>
 
