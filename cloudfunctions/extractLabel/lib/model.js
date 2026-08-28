@@ -95,4 +95,62 @@ function extractJSON(text) {
   }
 }
 
-module.exports = { recognize, extractJSON, readConfig };
+/**
+ * 配置自检：不拍照也能验证模型接得通。
+ *
+ * 分别区分三种失败，因为它们的修法完全不同：
+ *   环境变量没填 / key 无效 / 模型名不存在
+ * 否则只能从一句「识别失败」倒着猜。
+ */
+async function selfTest() {
+  let cfg;
+  try {
+    cfg = readConfig();
+  } catch (e) {
+    return { ok: false, stage: 'env', message: e.message };
+  }
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const resp = await fetch(`${cfg.MODEL_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.MODEL_API_KEY}` },
+      body: JSON.stringify({
+        model: cfg.MODEL_NAME,
+        max_tokens: 8,
+        messages: [{ role: 'user', content: '回复 ok 两个字母，不要其他内容' }],
+      }),
+    });
+
+    const body = await resp.text().catch(() => '');
+    if (resp.status === 401 || resp.status === 403) {
+      return { ok: false, stage: 'auth', message: `密钥被拒绝（HTTP ${resp.status}）。检查 MODEL_API_KEY`, detail: body.slice(0, 300) };
+    }
+    if (resp.status === 404 || /model.*not.*(found|exist)|invalid.*model/i.test(body)) {
+      return { ok: false, stage: 'model', message: `模型名 ${cfg.MODEL_NAME} 不被接受。到厂商控制台核对可用的模型 id`, detail: body.slice(0, 300) };
+    }
+    if (!resp.ok) {
+      return { ok: false, stage: 'http', message: `接口返回 HTTP ${resp.status}`, detail: body.slice(0, 300) };
+    }
+
+    return {
+      ok: true,
+      message: '模型接通',
+      baseUrl: cfg.MODEL_BASE_URL,
+      model: cfg.MODEL_NAME,
+      // 只回显 key 的头尾，确认填的是不是同一把，但不整个打出来
+      keyHint: `${cfg.MODEL_API_KEY.slice(0, 4)}…${cfg.MODEL_API_KEY.slice(-4)}`,
+    };
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      return { ok: false, stage: 'network', message: `连接超时（${TIMEOUT_MS / 1000}秒）。检查 MODEL_BASE_URL 是否正确、是否境内可达` };
+    }
+    return { ok: false, stage: 'network', message: `连接失败：${e.message}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+module.exports = { recognize, extractJSON, readConfig, selfTest };

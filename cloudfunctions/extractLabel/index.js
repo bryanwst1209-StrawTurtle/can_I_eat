@@ -8,13 +8,16 @@
 const cloud = require('wx-server-sdk');
 const { EXTRACT_PROMPT } = require('./lib/prompt');
 const { validateLabel } = require('./lib/schema');
-const { recognize, extractJSON } = require('./lib/model');
+const { recognize, extractJSON, selfTest } = require('./lib/model');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const MAX_RETRY = 1;
 
 exports.main = async (event) => {
+  // 配置自检：在云开发控制台用 {"ping": true} 调用即可，不需要图片
+  if (event && event.ping) return selfTest();
+
   const { fileID } = event || {};
   if (!fileID) {
     return { ok: false, errCode: 'NO_FILE', message: '未收到图片' };
