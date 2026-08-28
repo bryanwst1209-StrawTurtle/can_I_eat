@@ -11,16 +11,16 @@
  *   MODEL_NAME      具体的视觉模型 id
  */
 
-const 超时毫秒 = 30000;
+const TIMEOUT_MS = 30000;
 
-function 读配置() {
+function readConfig() {
   const { MODEL_BASE_URL, MODEL_API_KEY, MODEL_NAME } = process.env;
-  const 缺失 = [];
-  if (!MODEL_BASE_URL) 缺失.push('MODEL_BASE_URL');
-  if (!MODEL_API_KEY) 缺失.push('MODEL_API_KEY');
-  if (!MODEL_NAME) 缺失.push('MODEL_NAME');
-  if (缺失.length) {
-    throw new Error(`云函数环境变量未配置：${缺失.join('、')}。请在微信开发者工具的云函数配置中填写。`);
+  const missing = [];
+  if (!MODEL_BASE_URL) missing.push('MODEL_BASE_URL');
+  if (!MODEL_API_KEY) missing.push('MODEL_API_KEY');
+  if (!MODEL_NAME) missing.push('MODEL_NAME');
+  if (missing.length) {
+    throw new Error(`云函数环境变量未配置：${missing.join('、')}。请在微信开发者工具的云函数配置中填写。`);
   }
   return { MODEL_BASE_URL, MODEL_API_KEY, MODEL_NAME };
 }
@@ -32,12 +32,12 @@ function 读配置() {
  * @param {string} 图片类型 如 'image/jpeg'
  * @returns {Promise<string>} 模型返回的原始文本
  */
-async function 识别图片(图片Buffer, 指令, 图片类型 = 'image/jpeg') {
-  const { MODEL_BASE_URL, MODEL_API_KEY, MODEL_NAME } = 读配置();
-  const dataUrl = `data:${图片类型};base64,${图片Buffer.toString('base64')}`;
+async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg') {
+  const { MODEL_BASE_URL, MODEL_API_KEY, MODEL_NAME } = readConfig();
+  const dataUrl = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 超时毫秒);
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 
   try {
     const resp = await fetch(`${MODEL_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
@@ -53,7 +53,7 @@ async function 识别图片(图片Buffer, 指令, 图片类型 = 'image/jpeg') {
         messages: [{
           role: 'user',
           content: [
-            { type: 'text', text: 指令 },
+            { type: 'text', text: prompt },
             { type: 'image_url', image_url: { url: dataUrl } },
           ],
         }],
@@ -61,18 +61,18 @@ async function 识别图片(图片Buffer, 指令, 图片类型 = 'image/jpeg') {
     });
 
     if (!resp.ok) {
-      const 详情 = await resp.text().catch(() => '');
-      throw new Error(`模型接口返回 ${resp.status}：${详情.slice(0, 200)}`);
+      const detail = await resp.text().catch(() => '');
+      throw new Error(`模型接口返回 ${resp.status}：${detail.slice(0, 200)}`);
     }
 
     const data = await resp.json();
-    const 文本 = data?.choices?.[0]?.message?.content;
-    if (typeof 文本 !== 'string' || 文本.length === 0) {
+    const text = data?.choices?.[0]?.message?.content;
+    if (typeof text !== 'string' || text.length === 0) {
       throw new Error('模型返回内容为空');
     }
-    return 文本;
+    return text;
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error(`模型接口超时（${超时毫秒 / 1000}秒）`);
+    if (e.name === 'AbortError') throw new Error(`模型接口超时（${TIMEOUT_MS / 1000}秒）`);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -83,16 +83,16 @@ async function 识别图片(图片Buffer, 指令, 图片类型 = 'image/jpeg') {
  * 从模型返回的文本里抠出 JSON。
  * 模型常常会把 JSON 包在 ```json 代码块里，或前后带一句废话。
  */
-function 抽取JSON(文本) {
-  const 去代码块 = 文本.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim();
-  const 起 = 去代码块.indexOf('{');
-  const 止 = 去代码块.lastIndexOf('}');
-  if (起 === -1 || 止 === -1 || 止 <= 起) return null;
+function extractJSON(text) {
+  const stripped = text.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim();
+  const start = stripped.indexOf('{');
+  const end = stripped.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
   try {
-    return JSON.parse(去代码块.slice(起, 止 + 1));
+    return JSON.parse(stripped.slice(start, end + 1));
   } catch {
     return null;
   }
 }
 
-module.exports = { 识别图片, 抽取JSON, 读配置 };
+module.exports = { recognize, extractJSON, readConfig };

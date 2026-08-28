@@ -1,83 +1,83 @@
-<view class="container" wx:if="{{判定}}">
+<view class="container" wx:if="{{judgement}}">
 
   <!-- 总体结论 -->
-  <view class="card bg-{{判定.总体等级}}">
-    <view class="card-title level-{{判定.总体等级}}">{{判定.总体文案}}</view>
-    <view class="muted small" wx:if="{{商品名称}}">{{商品名称}}</view>
-    <view class="muted small">判定基准：{{判定.基准 === 'per100ml' ? '每 100 毫升' : '每 100 克'}}</view>
+  <view class="card bg-{{judgement.overallLevel}}">
+    <view class="card-title level-{{judgement.overallLevel}}">{{judgement.overallText}}</view>
+    <view class="muted small" wx:if="{{productName}}">{{productName}}</view>
+    <view class="muted small">判定基准：{{judgement.basisLabel}}</view>
   </view>
 
   <!-- 按成员的结论 -->
-  <view class="card" wx:if="{{判定.个性化}}">
+  <view class="card" wx:if="{{judgement.personalized}}">
     <view class="card-title">对家里各人</view>
-    <view wx:for="{{判定.成员结论}}" wx:key="名称" class="bg-{{item.等级}}"
+    <view wx:for="{{judgement.perMember}}" wx:key="name" class="bg-{{item.level}}"
           style="border-radius:12rpx;padding:20rpx;margin-bottom:16rpx;">
-      <view class="level-{{item.等级}}" style="font-weight:600;">
-        {{item.名称}}：{{item.结论文案}}
+      <view class="level-{{item.level}}" style="font-weight:600;">
+        {{item.name}}：{{item.verdict}}
       </view>
-      <view class="muted small" wx:if="{{item.关注点.length}}">关注：{{item.关注点}}</view>
-      <view wx:for="{{item.命中}}" wx:for-item="c" wx:key="规则id" style="margin-top:12rpx;">
-        <view class="small">· {{c.说明}}</view>
-        <view class="muted small">{{c.事实}}</view>
+      <view class="muted small" wx:if="{{item.concernLabels.length}}">关注：{{item.concernLabels}}</view>
+      <view wx:for="{{item.hits}}" wx:for-item="f" wx:key="ruleId" style="margin-top:12rpx;">
+        <view class="small">· {{f.summary}}</view>
+        <view class="muted small">{{f.fact}}</view>
       </view>
     </view>
   </view>
 
   <!-- 通用结论与证据 -->
-  <view class="card" wx:if="{{判定.通用结论.length}}">
+  <view class="card" wx:if="{{judgement.general.length}}">
     <view class="card-title">这个产品本身</view>
-    <view wx:for="{{判定.通用结论}}" wx:key="规则id" style="padding:16rpx 0;border-bottom:1rpx solid #eef1ef;">
-      <view class="level-{{item.等级}}">{{item.说明}}</view>
-      <view class="muted small">{{item.事实}}</view>
-      <view class="small" style="margin-top:8rpx;" data-id="{{item.规则id}}" bindtap="切换依据">
-        <text class="level-info">{{展开[item.规则id] ? '收起依据 ▲' : '看依据 ▼'}}</text>
-        <text class="muted small"> · {{item.阈值性质}}</text>
+    <view wx:for="{{judgement.general}}" wx:key="ruleId" style="padding:16rpx 0;border-bottom:1rpx solid #eef1ef;">
+      <view class="level-{{item.level}}">{{item.summary}}</view>
+      <view class="muted small">{{item.fact}}</view>
+      <view class="small" style="margin-top:8rpx;" data-id="{{item.ruleId}}" bindtap="toggleEvidence">
+        <text class="level-info">{{expanded[item.ruleId] ? '收起依据 ▲' : '看依据 ▼'}}</text>
+        <text class="muted small"> · {{item.thresholdKindLabel}}</text>
       </view>
-      <view wx:if="{{展开[item.规则id]}}" class="muted small"
+      <view wx:if="{{expanded[item.ruleId]}}" class="muted small"
             style="margin-top:8rpx;padding:16rpx;background:#f7f8f7;border-radius:8rpx;">
-        {{item.依据}}
+        {{item.evidence}}
       </view>
     </view>
   </view>
 
   <!-- 换算过程也是证据的一部分 -->
-  <view class="card" wx:if="{{判定.换算说明.length}}">
+  <view class="card" wx:if="{{judgement.conversions.length}}">
     <view class="card-title">数值是怎么换算的</view>
-    <view class="muted small" wx:for="{{判定.换算说明}}" wx:key="*this">· {{item}}</view>
+    <view class="muted small" wx:for="{{judgement.conversions}}" wx:key="*this">· {{item}}</view>
   </view>
 
   <!-- SC 核验 -->
-  <view class="card" wx:if="{{SC核验}}">
+  <view class="card" wx:if="{{scCheck}}">
     <view class="card-title">生产许可证编号</view>
-    <block wx:if="{{!SC核验.有编号}}">
-      <view class="muted small">{{SC核验.说明}}</view>
+    <block wx:if="{{!scCheck.hasCode}}">
+      <view class="muted small">{{scCheck.message}}</view>
     </block>
     <block wx:else>
-      <view class="muted small">{{SC核验.原文}}</view>
-      <view class="{{SC核验.结论 === 'valid' ? 'level-ok' : 'level-warn'}}" style="margin-top:8rpx;">
-        {{SC核验.说明}}
+      <view class="muted small">{{scCheck.raw}}</view>
+      <view class="{{scCheck.result === 'valid' ? 'level-ok' : 'level-warn'}}" style="margin-top:8rpx;">
+        {{scCheck.message}}
       </view>
-      <view class="muted small" wx:if="{{SC核验.产地}}">标称产地：{{SC核验.产地}}</view>
-      <view class="muted small" wx:if="{{SC核验.类别}}">许可类别：{{SC核验.类别}}</view>
-      <view class="muted small" wx:for="{{SC核验.未命中}}" wx:key="*this">· {{item}}</view>
-      <view class="muted small" wx:if="{{SC核验.数据版本}}">
-        查表依据：{{SC核验.数据版本.来源}} {{SC核验.数据版本.日期}}
+      <view class="muted small" wx:if="{{scCheck.origin}}">标称产地：{{scCheck.origin}}</view>
+      <view class="muted small" wx:if="{{scCheck.category}}">许可类别：{{scCheck.category}}</view>
+      <view class="muted small" wx:for="{{scCheck.misses}}" wx:key="*this">· {{item}}</view>
+      <view class="muted small" wx:if="{{scCheck.dataVersion}}">
+        查表依据：{{scCheck.dataVersion.source}} {{scCheck.dataVersion.date}}
       </view>
     </block>
   </view>
 
   <!-- 未判断项：这一块不能省，否则会让人误以为「没提到就是没问题」 -->
-  <view class="card" wx:if="{{判定.未判断.length}}">
+  <view class="card" wx:if="{{judgement.undetermined.length}}">
     <view class="card-title">这些没能判断</view>
     <view class="muted small">包装上没识别到，不代表没有，也不代表是 0</view>
-    <view class="muted small" wx:for="{{判定.未判断}}" wx:key="*this" style="margin-top:8rpx;">· {{item}}</view>
+    <view class="muted small" wx:for="{{judgement.undetermined}}" wx:key="*this" style="margin-top:8rpx;">· {{item}}</view>
   </view>
 
-  <view class="muted small" style="padding:16rpx 8rpx;">{{判定.免责声明}}</view>
+  <view class="muted small" style="padding:16rpx 8rpx;">{{judgement.disclaimer}}</view>
 
-  <button class="btn-primary" bindtap="再扫一个">再扫一个</button>
+  <button class="btn-primary" bindtap="scanAgain">再扫一个</button>
 </view>
 
-<view class="container" wx:elif="{{加载中}}">
+<view class="container" wx:elif="{{loading}}">
   <view class="card"><text class="muted">加载中…</text></view>
 </view>

@@ -1,8 +1,9 @@
 App({
   globalData: {
-    云环境: 'cloudbase-d0g5ogyub05b69f8f',
-    当前标签: null,
-    当前结果: null,
+    envId: 'cloudbase-d0g5ogyub05b69f8f',
+    currentLabel: null,
+    currentFileID: null,
+    currentResult: null,
   },
 
   onLaunch() {
@@ -11,7 +12,7 @@ App({
       return;
     }
     wx.cloud.init({
-      env: this.globalData.云环境 || undefined,
+      env: this.globalData.envId || undefined,
       traceUser: true,
     });
   },

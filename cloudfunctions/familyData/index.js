@@ -7,109 +7,110 @@
  */
 
 const cloud = require('wx-server-sdk');
-const { 取家庭归属, 鉴权失败响应 } = require('./lib/auth');
+const { resolveFamily, authFailure } = require('./lib/auth');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
-/** 允许的关注点取值——与 rules.js 里的「适用人群」保持一致 */
-const 允许关注点 = ['高血压', '控糖', '儿童', '控脂'];
+/** 关注点白名单，与 analyze/lib/rules.js 的 CONCERNS 保持一致 */
+const CONCERNS = [
+  { key: 'hypertension', label: '高血压' },
+  { key: 'lowSugar', label: '控糖' },
+  { key: 'child', label: '儿童' },
+  { key: 'lowFat', label: '控脂' },
+];
+const ALLOWED_KEYS = CONCERNS.map((c) => c.key);
 
 exports.main = async (event) => {
   const { action } = event || {};
 
-  let 归属;
+  let ctx;
   try {
-    归属 = await 取家庭归属(cloud, db);
+    ctx = await resolveFamily(cloud, db);
   } catch (e) {
-    return 鉴权失败响应(e);
+    return authFailure(e);
   }
 
-  const 处理 = {
-    列出成员: 列出成员,
-    保存成员: 保存成员,
-    删除成员: 删除成员,
-    列出历史: 列出历史,
-    读取历史: 读取历史,
+  const handler = {
+    listMembers, saveMember, removeMember, listScans, getScan,
   }[action];
 
-  if (!处理) return { ok: false, 错误码: 'UNKNOWN_ACTION', 提示: `未知操作：${action}` };
+  if (!handler) return { ok: false, errCode: 'UNKNOWN_ACTION', message: `未知操作：${action}` };
 
   try {
-    return await 处理(event, 归属);
+    return await handler(event, ctx);
   } catch (e) {
     console.error(action, e);
-    return { ok: false, 错误码: 'INTERNAL', 提示: '操作失败，请稍后重试' };
+    return { ok: false, errCode: 'INTERNAL', message: '操作失败，请稍后重试' };
   }
 };
 
-async function 列出成员(_event, 归属) {
-  const res = await db.collection('members').where({ familyId: 归属.familyId }).get();
-  return { ok: true, 成员: res.data || [], 允许关注点 };
+async function listMembers(_event, ctx) {
+  const res = await db.collection('members').where({ familyId: ctx.familyId }).get();
+  const members = (res.data || []).map((m) => ({
+    ...m,
+    concernLabels: (m.concerns || []).map((k) => (CONCERNS.find((c) => c.key === k) || {}).label || k),
+  }));
+  return { ok: true, members, concerns: CONCERNS };
 }
 
-async function 保存成员(event, 归属) {
-  const { _id, 名称, 关注点 } = event;
-  if (!名称 || typeof 名称 !== 'string' || 名称.trim().length === 0) {
-    return { ok: false, 错误码: 'BAD_NAME', 提示: '成员名称不能为空' };
+async function saveMember(event, ctx) {
+  const { _id, name, concerns } = event;
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return { ok: false, errCode: 'BAD_NAME', message: '成员名称不能为空' };
   }
-  const 净化关注点 = Array.isArray(关注点)
-    ? [...new Set(关注点.filter((k) => 允许关注点.includes(k)))]
+  const cleaned = Array.isArray(concerns)
+    ? [...new Set(concerns.filter((k) => ALLOWED_KEYS.includes(k)))]
     : [];
 
   if (_id) {
     // 先确认这条记录确实属于本家庭，防止改到别家的数据
-    const 现有 = await db.collection('members').doc(_id).get().catch(() => null);
-    if (!现有 || !现有.data || 现有.data.familyId !== 归属.familyId) {
-      return { ok: false, 错误码: 'NOT_FOUND', 提示: '成员不存在' };
+    const existing = await db.collection('members').doc(_id).get().catch(() => null);
+    if (!existing || !existing.data || existing.data.familyId !== ctx.familyId) {
+      return { ok: false, errCode: 'NOT_FOUND', message: '成员不存在' };
     }
     await db.collection('members').doc(_id).update({
-      data: { 名称: 名称.trim(), 关注点: 净化关注点, 更新时间: db.serverDate() },
+      data: { name: name.trim(), concerns: cleaned, updatedAt: db.serverDate() },
     });
     return { ok: true, _id };
   }
 
-  const 写入 = await db.collection('members').add({
-    data: {
-      familyId: 归属.familyId,
-      名称: 名称.trim(),
-      关注点: 净化关注点,
-      创建时间: db.serverDate(),
-    },
+  const written = await db.collection('members').add({
+    data: { familyId: ctx.familyId, name: name.trim(), concerns: cleaned, createdAt: db.serverDate() },
   });
-  return { ok: true, _id: 写入._id };
+  return { ok: true, _id: written._id };
 }
 
-async function 删除成员(event, 归属) {
+async function removeMember(event, ctx) {
   const { _id } = event;
-  if (!_id) return { ok: false, 错误码: 'NO_ID', 提示: '缺少成员 id' };
-  const 现有 = await db.collection('members').doc(_id).get().catch(() => null);
-  if (!现有 || !现有.data || 现有.data.familyId !== 归属.familyId) {
-    return { ok: false, 错误码: 'NOT_FOUND', 提示: '成员不存在' };
+  if (!_id) return { ok: false, errCode: 'NO_ID', message: '缺少成员 id' };
+  const existing = await db.collection('members').doc(_id).get().catch(() => null);
+  if (!existing || !existing.data || existing.data.familyId !== ctx.familyId) {
+    return { ok: false, errCode: 'NOT_FOUND', message: '成员不存在' };
   }
   await db.collection('members').doc(_id).remove();
   return { ok: true };
 }
 
-async function 列出历史(event, 归属) {
-  const 页 = Math.max(0, Number(event.页) || 0);
-  const 每页 = 20;
+async function listScans(event, ctx) {
+  const page = Math.max(0, Number(event.page) || 0);
+  const pageSize = 20;
   const res = await db.collection('scans')
-    .where({ familyId: 归属.familyId })
-    .orderBy('创建时间', 'desc')
-    .skip(页 * 每页)
-    .limit(每页)
-    .field({ 商品名称: true, 创建时间: true, fileID: true, '判定.总体等级': true, '判定.总体文案': true })
+    .where({ familyId: ctx.familyId })
+    .orderBy('createdAt', 'desc')
+    .skip(page * pageSize)
+    .limit(pageSize)
+    .field({ productName: true, createdAt: true, fileID: true, 'judgement.overallLevel': true, 'judgement.overallText': true })
     .get();
-  return { ok: true, 记录: res.data || [], 页, 每页 };
+  return { ok: true, records: res.data || [], page, pageSize };
 }
 
-async function 读取历史(event, 归属) {
+async function getScan(event, ctx) {
   const { _id } = event;
-  if (!_id) return { ok: false, 错误码: 'NO_ID', 提示: '缺少记录 id' };
+  if (!_id) return { ok: false, errCode: 'NO_ID', message: '缺少记录 id' };
   const res = await db.collection('scans').doc(_id).get().catch(() => null);
-  if (!res || !res.data || res.data.familyId !== 归属.familyId) {
-    return { ok: false, 错误码: 'NOT_FOUND', 提示: '记录不存在' };
+  if (!res || !res.data || res.data.familyId !== ctx.familyId) {
+    return { ok: false, errCode: 'NOT_FOUND', message: '记录不存在' };
   }
-  return { ok: true, 记录: res.data };
+  return { ok: true, record: res.data };
 }

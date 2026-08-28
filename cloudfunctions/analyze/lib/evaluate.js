@@ -5,155 +5,162 @@
  * 模型只负责「抄」，判断全部在这里，因此结论可复现、可解释、可追溯（§2.3）。
  */
 
-/** 等级由轻到重。比较严重程度时用索引。 */
-const 等级序 = ['ok', 'info', 'warn', 'danger'];
+const { NUTRIENT_LABEL } = require('./normalize');
 
-function 更严重(a, b) {
-  return 等级序.indexOf(a) >= 等级序.indexOf(b) ? a : b;
+/** 等级由轻到重。比较严重程度时用索引。 */
+const LEVELS = ['ok', 'info', 'warn', 'danger'];
+
+function worse(a, b) {
+  return LEVELS.indexOf(a) >= LEVELS.indexOf(b) ? a : b;
 }
 
-const 比较器 = {
+const COMPARATORS = {
   '>': (v, t) => v > t,
   '>=': (v, t) => v >= t,
   '<': (v, t) => v < t,
   '<=': (v, t) => v <= t,
 };
 
-/**
- * 判断一条数值规则是否命中
- * @returns {{命中: boolean, 实测值?: number, 缺失?: string}}
- */
-function 匹配数值规则(规则, 归一) {
-  const 项 = 归一.营养成分[规则.指标];
-  // 缺失即声明，绝不当作 0（docs/design.md §8）
-  if (!项 || 项.值 == null) {
-    return { 命中: false, 缺失: `未识别到${规则.指标}含量，「${规则.说明}」一项无法判断` };
-  }
-  const cmp = 比较器[规则.比较];
-  if (!cmp) return { 命中: false, 缺失: `规则 ${规则.id} 的比较符「${规则.比较}」无效` };
-  return { 命中: cmp(项.值, 规则.阈值), 实测值: 项.值, 单位: 项.单位 };
-}
-
-/**
- * 判断一条配料规则是否命中
- */
-function 匹配配料规则(规则, 配料) {
-  if (!Array.isArray(配料) || 配料.length === 0) {
-    return { 命中: false, 缺失: `未识别到配料表，「${规则.说明}」一项无法判断` };
-  }
-  const 命中项 = [];
-  for (const 成分 of 配料) {
-    for (const kw of 规则.配料关键词) {
-      if (typeof 成分 === 'string' && 成分.includes(kw)) 命中项.push(成分);
-    }
-  }
-  return { 命中: 命中项.length > 0, 命中配料: [...new Set(命中项)] };
-}
-
-/**
- * 把命中的规则转成一条带证据的结论
- */
-function 生成证据(规则, 匹配, 基准) {
-  const 基准文案 = 基准 === 'per100ml' ? '每100ml' : '每100g';
-  let 事实;
-  if (规则.指标) {
-    事实 = `${规则.指标} ${匹配.实测值}${匹配.单位}/${基准文案.replace('每', '')}，${规则.比较} 阈值 ${规则.阈值}${规则.单位}`;
-  } else {
-    事实 = `配料表中检出：${匹配.命中配料.join('、')}`;
-  }
-  return {
-    规则id: 规则.id,
-    等级: 规则.等级,
-    说明: 规则.说明,
-    事实,
-    依据: 规则.依据,
-    阈值性质: 规则.阈值性质,
-    基准: 基准文案,
-  };
-}
-
 /** 措辞约束：不出现「不能吃」等绝对化表述（docs/design.md §8） */
-const 结论文案 = {
+const VERDICT_TEXT = {
   ok: '未发现需要注意的项',
   info: '有几项信息值得留意',
   warn: '不太建议，有指标偏高',
   danger: '不建议食用，建议咨询医生',
 };
 
+const DISCLAIMER =
+  '本结论依据包装标注信息与公开标准自动生成，仅供家庭参考，不构成医疗或营养建议。如有健康状况，请咨询医生或注册营养师。';
+
+/**
+ * 判断一条数值规则是否命中
+ * @returns {{hit: boolean, measured?: number, unit?: string, missing?: string}}
+ */
+function matchMetricRule(rule, normalized) {
+  const item = normalized.nutrients[rule.metric];
+  const name = NUTRIENT_LABEL[rule.metric] || rule.metric;
+  // 缺失即声明，绝不当作 0（docs/design.md §8）
+  if (!item || item.value == null) {
+    return { hit: false, missing: `未识别到${name}含量，「${rule.summary}」一项无法判断` };
+  }
+  const cmp = COMPARATORS[rule.op];
+  if (!cmp) return { hit: false, missing: `规则 ${rule.id} 的比较符「${rule.op}」无效` };
+  return { hit: cmp(item.value, rule.threshold), measured: item.value, unit: item.unit };
+}
+
+/**
+ * 判断一条配料规则是否命中
+ */
+function matchIngredientRule(rule, ingredients) {
+  if (!Array.isArray(ingredients) || ingredients.length === 0) {
+    return { hit: false, missing: `未识别到配料表，「${rule.summary}」一项无法判断` };
+  }
+  const matched = [];
+  for (const item of ingredients) {
+    for (const kw of rule.ingredientKeywords) {
+      if (typeof item === 'string' && item.includes(kw)) matched.push(item);
+    }
+  }
+  return { hit: matched.length > 0, matchedIngredients: [...new Set(matched)] };
+}
+
+/**
+ * 把命中的规则转成一条带证据的结论
+ */
+function toFinding(rule, match, basis) {
+  const basisLabel = basis === 'per100ml' ? '100ml' : '100g';
+  let fact;
+  if (rule.metric) {
+    const name = NUTRIENT_LABEL[rule.metric] || rule.metric;
+    fact = `${name} ${match.measured}${match.unit}/${basisLabel}，${rule.op} 阈值 ${rule.threshold}${rule.unit}`;
+  } else {
+    fact = `配料表中检出：${match.matchedIngredients.join('、')}`;
+  }
+  return {
+    ruleId: rule.id,
+    level: rule.level,
+    summary: rule.summary,
+    fact,
+    evidence: rule.evidence,
+    thresholdKind: rule.thresholdKind,
+    thresholdKindLabel: rule.thresholdKind === 'standard' ? '标准明文' : '工具设定',
+    basisLabel: `每${basisLabel}`,
+  };
+}
+
 /**
  * 主入口
  *
- * @param {object} 入参
- * @param {object} 入参.归一 normalize() 的输出
- * @param {string[]} 入参.配料 配料表数组
- * @param {Array<{名称: string, 关注点: string[]}>} 入参.成员 家庭成员；为空时退化为通用判断
- * @param {Array} 入参.规则 规则表
- * @returns {object} 判定结果
+ * @param {object} input
+ * @param {object} input.normalized normalize() 的输出
+ * @param {string[]} input.ingredients 配料表
+ * @param {Array<{name: string, concerns: string[]}>} input.members 家庭成员；为空时退化为通用判断
+ * @param {Array} input.rules 规则表
  */
-function evaluate({ 归一, 配料 = [], 成员 = [], 规则 = [] }) {
-  if (!归一 || !归一.基准) {
+function evaluate({ normalized, ingredients = [], members = [], rules = [] }) {
+  if (!normalized || !normalized.basis) {
     return {
-      基准: null,
-      总体等级: 'info',
-      个性化: false,
-      通用结论: [],
-      成员结论: [],
-      未判断: (归一 && 归一.无法归一) || ['营养成分表未能归一化，无法进行任何数值判断'],
-      换算说明: [],
-      免责声明: 免责声明文本(),
+      basis: null,
+      overallLevel: 'info',
+      overallText: VERDICT_TEXT.info,
+      personalized: false,
+      general: [],
+      perMember: [],
+      undetermined: (normalized && normalized.unresolved) || ['营养成分表未能归一化，无法进行任何数值判断'],
+      conversions: [],
+      disclaimer: DISCLAIMER,
     };
   }
 
-  const 未判断 = [...(归一.无法归一 || [])];
+  const undetermined = [...(normalized.unresolved || [])];
 
-  // 对给定人群集合跑一遍规则
-  const 跑规则 = (人群) => {
-    const 结论 = [];
-    for (const 规则项 of 规则) {
-      const 适用 = 规则项.适用人群 || [];
-      const 是通用 = 适用.length === 0;
-      if (人群 === null ? !是通用 : 是通用 || !适用.some((p) => 人群.includes(p))) continue;
+  /** concerns 传 null 表示只跑通用规则 */
+  const run = (concerns) => {
+    const findings = [];
+    for (const rule of rules) {
+      const audiences = rule.audiences || [];
+      const isGeneral = audiences.length === 0;
+      if (concerns === null
+        ? !isGeneral
+        : isGeneral || !audiences.some((a) => concerns.includes(a))) continue;
 
-      const 匹配 = 规则项.指标
-        ? 匹配数值规则(规则项, 归一)
-        : 匹配配料规则(规则项, 配料);
+      const match = rule.metric
+        ? matchMetricRule(rule, normalized)
+        : matchIngredientRule(rule, ingredients);
 
-      if (匹配.缺失) {
-        if (!未判断.includes(匹配.缺失)) 未判断.push(匹配.缺失);
+      if (match.missing) {
+        if (!undetermined.includes(match.missing)) undetermined.push(match.missing);
         continue;
       }
-      if (匹配.命中) 结论.push(生成证据(规则项, 匹配, 归一.基准));
+      if (match.hit) findings.push(toFinding(rule, match, normalized.basis));
     }
-    return 结论;
+    return findings;
   };
 
-  const 通用结论 = 跑规则(null);
-  let 总体等级 = 通用结论.reduce((acc, c) => 更严重(acc, c.等级), 'ok');
+  const general = run(null);
+  let overallLevel = general.reduce((acc, f) => worse(acc, f.level), 'ok');
 
-  const 成员结论 = 成员.map((m) => {
-    const 关注点 = m.关注点 || [];
-    const 命中 = 跑规则(关注点);
-    // 成员的等级同时受通用结论影响——高钠对谁都是高钠
-    const 等级 = [...命中, ...通用结论].reduce((acc, c) => 更严重(acc, c.等级), 'ok');
-    总体等级 = 更严重(总体等级, 等级);
-    return { 名称: m.名称, 关注点, 等级, 结论文案: 结论文案[等级], 命中 };
+  const perMember = members.map((m) => {
+    const concerns = m.concerns || [];
+    const hits = run(concerns);
+    // 成员等级同时受通用结论影响——高钠对谁都是高钠
+    const level = [...hits, ...general].reduce((acc, f) => worse(acc, f.level), 'ok');
+    overallLevel = worse(overallLevel, level);
+    return { name: m.name, concerns, concernLabels: m.concernLabels || [], level, verdict: VERDICT_TEXT[level], hits };
   });
 
   return {
-    基准: 归一.基准,
-    总体等级,
-    总体文案: 结论文案[总体等级],
-    个性化: 成员.length > 0,
-    通用结论,
-    成员结论,
-    未判断,
-    换算说明: 归一.换算说明 || [],
-    免责声明: 免责声明文本(),
+    basis: normalized.basis,
+    basisLabel: normalized.basis === 'per100ml' ? '每 100 毫升' : '每 100 克',
+    overallLevel,
+    overallText: VERDICT_TEXT[overallLevel],
+    personalized: members.length > 0,
+    general,
+    perMember,
+    undetermined,
+    conversions: normalized.conversions || [],
+    disclaimer: DISCLAIMER,
   };
 }
 
-function 免责声明文本() {
-  return '本结论依据包装标注信息与公开标准自动生成，仅供家庭参考，不构成医疗或营养建议。如有健康状况，请咨询医生或注册营养师。';
-}
-
-module.exports = { evaluate, 更严重, 等级序, 结论文案 };
+module.exports = { evaluate, worse, LEVELS, VERDICT_TEXT, DISCLAIMER };

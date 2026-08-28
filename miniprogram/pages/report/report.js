@@ -2,58 +2,58 @@ const app = getApp();
 
 Page({
   data: {
-    判定: null,
-    SC核验: null,
-    商品名称: '',
-    展开: {}, // 规则id -> 是否展开依据
-    加载中: false,
+    judgement: null,
+    scCheck: null,
+    productName: '',
+    expanded: {}, // ruleId -> 是否展开依据
+    loading: false,
   },
 
   onLoad(query) {
-    if (query.id) return this.从历史加载(query.id);
+    if (query.id) return this.loadFromHistory(query.id);
 
-    const 结果 = app.globalData.当前结果;
-    if (!结果) {
+    const result = app.globalData.currentResult;
+    if (!result) {
       wx.showToast({ title: '没有可显示的结果', icon: 'none' });
       return;
     }
     this.setData({
-      判定: 结果.判定,
-      SC核验: 结果.SC核验,
-      商品名称: (app.globalData.当前标签 || {}).商品名称 || '',
+      judgement: result.judgement,
+      scCheck: result.scCheck,
+      productName: (app.globalData.currentLabel || {}).productName || '',
     });
   },
 
-  async 从历史加载(id) {
-    this.setData({ 加载中: true });
+  async loadFromHistory(id) {
+    this.setData({ loading: true });
     try {
       const { result } = await wx.cloud.callFunction({
         name: 'familyData',
-        data: { action: '读取历史', _id: id },
+        data: { action: 'getScan', _id: id },
       });
       if (!result || !result.ok) {
-        wx.showToast({ title: (result && result.提示) || '读取失败', icon: 'none' });
-        this.setData({ 加载中: false });
+        wx.showToast({ title: (result && result.message) || '读取失败', icon: 'none' });
+        this.setData({ loading: false });
         return;
       }
       this.setData({
-        判定: result.记录.判定,
-        SC核验: result.记录.SC核验,
-        商品名称: result.记录.商品名称 || '',
-        加载中: false,
+        judgement: result.record.judgement,
+        scCheck: result.record.scCheck,
+        productName: result.record.productName || '',
+        loading: false,
       });
     } catch (e) {
       wx.showToast({ title: '读取失败', icon: 'none' });
-      this.setData({ 加载中: false });
+      this.setData({ loading: false });
     }
   },
 
-  切换依据(e) {
+  toggleEvidence(e) {
     const id = e.currentTarget.dataset.id;
-    this.setData({ [`展开.${id}`]: !this.data.展开[id] });
+    this.setData({ [`expanded.${id}`]: !this.data.expanded[id] });
   },
 
-  再扫一个() {
+  scanAgain() {
     wx.navigateBack({ delta: 99, fail: () => wx.reLaunch({ url: '/pages/scan/scan' }) });
   },
 });

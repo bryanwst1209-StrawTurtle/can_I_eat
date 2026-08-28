@@ -24,47 +24,47 @@
 const fs = require('fs');
 const path = require('path');
 
-const 根 = path.join(__dirname, '..');
-const 原始目录 = path.join(根, 'data/raw');
+const root = path.join(__dirname, '..');
+const rawDir = path.join(root, 'data/raw');
 
-const 参数 = process.argv.slice(2);
-const 取参 = (名, 默认值) => {
-  const i = 参数.indexOf(`--${名}`);
-  return i > -1 && 参数[i + 1] ? 参数[i + 1] : 默认值;
+const argv = process.argv.slice(2);
+const arg = (name, fallback) => {
+  const i = argv.indexOf(`--${name}`);
+  return i > -1 && argv[i + 1] ? argv[i + 1] : fallback;
 };
-const 来源 = 取参('source', '国家统计局 统计用区划代码');
-const 抓取日期 = 取参('date', new Date().toISOString().slice(0, 10));
+const source = arg('source', '国家统计局 统计用区划代码');
+const fetchedAt = arg('date', new Date().toISOString().slice(0, 10));
 
-if (!fs.existsSync(原始目录)) {
-  console.error(`没有 ${原始目录}，先建目录并把下载的文件放进去`);
+if (!fs.existsSync(rawDir)) {
+  console.error(`没有 ${rawDir}，先建目录并把下载的文件放进去`);
   process.exit(1);
 }
 
-const 文件 = fs.readdirSync(原始目录).filter((f) => /^\d{4}\.(html?|txt|csv)$/i.test(f));
-if (文件.length === 0) {
+const files = fs.readdirSync(rawDir).filter((f) => /^\d{4}\.(html?|txt|csv)$/i.test(f));
+if (files.length === 0) {
   console.error('data/raw/ 下没有找到 <年份>.html / .txt / .csv 文件');
   console.error('例如：data/raw/2025.html');
   process.exit(1);
 }
 
-for (const f of 文件) {
-  const 年份 = f.slice(0, 4);
-  const 原文 = fs.readFileSync(path.join(原始目录, f), 'utf-8');
-  const 数据 = 解析(原文);
+for (const f of files) {
+  const year = f.slice(0, 4);
+  const text = fs.readFileSync(path.join(rawDir, f), 'utf-8');
+  const data = parse(text);
 
-  const 条数 = Object.keys(数据).length;
-  if (条数 === 0) {
+  const count = Object.keys(data).length;
+  if (count === 0) {
     console.error(`${f}：一条都没解析出来，检查文件内容是否是「代码 + 名称」的列表`);
     continue;
   }
 
-  const 出路 = path.join(根, 'data', `regions-${年份}.json`);
-  fs.writeFileSync(出路, JSON.stringify({ 来源, 年份, 抓取日期, 数据 }, null, 2) + '\n', 'utf-8');
-  console.log(`${f} → regions-${年份}.json：${条数} 条`);
+  const dest = path.join(root, 'data', `regions-${year}.json`);
+  fs.writeFileSync(dest, JSON.stringify({ source, year, fetchedAt, data }, null, 2) + '\n', 'utf-8');
+  console.log(`${f} → regions-${year}.json：${count} 条`);
 
-  const 省级 = Object.keys(数据).filter((c) => c.endsWith('0000')).length;
-  if (省级 < 30 || 省级 > 40) {
-    console.warn(`  ⚠ 省级代码 ${省级} 个，正常应在 31-34 之间，可能没解析全`);
+  const provinces = Object.keys(data).filter((c) => c.endsWith('0000')).length;
+  if (provinces < 30 || provinces > 40) {
+    console.warn(`  ⚠ 省级代码 ${provinces} 个，正常应在 31-34 之间，可能没解析全`);
   }
 }
 
@@ -72,8 +72,8 @@ for (const f of 文件) {
  * 从任意文本里抠出「6位代码 + 名称」。
  * HTML 先去标签，再逐行匹配，因此 html / txt / csv 用同一套逻辑。
  */
-function 解析(原文) {
-  const 纯文本 = 原文
+function parse(text) {
+  const plain = text
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<\/(tr|p|div|li)>/gi, '\n')
@@ -81,17 +81,17 @@ function 解析(原文) {
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
 
-  const 数据 = {};
-  for (const 行 of 纯文本.split(/\r?\n/)) {
+  const data = {};
+  for (const line of plain.split(/\r?\n/)) {
     // 一行里可能有多组（表格被压成一行的情况）
     const re = /(\d{6})[\s\t,，]+([一-龥][一-龥A-Za-z·（）()]{0,30})/g;
     let m;
-    while ((m = re.exec(行)) !== null) {
-      const [, 代码, 名称原始] = m;
-      const 名称 = 名称原始.trim();
+    while ((m = re.exec(line)) !== null) {
+      const [, code, rawName] = m;
+      const name = rawName.trim();
       // 全 0 结尾之外的代码也保留；名称过短的多半是误匹配
-      if (名称.length >= 2) 数据[代码] = 名称;
+      if (name.length >= 2) data[code] = name;
     }
   }
-  return 数据;
+  return data;
 }

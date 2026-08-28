@@ -4,49 +4,49 @@
     <view class="muted small">没配任何人时，只给通用的红绿灯判断。</view>
   </view>
 
-  <view class="card bg-warn" wx:if="{{错误}}">
-    <view class="level-warn">{{错误}}</view>
+  <view class="card bg-warn" wx:if="{{error}}">
+    <view class="level-warn">{{error}}</view>
     <block wx:if="{{openid}}">
       <view class="muted small" style="margin-top:12rpx;">当前 openid：</view>
       <view class="small" style="word-break:break-all;">{{openid}}</view>
-      <button class="btn-secondary" bindtap="复制openid">复制 openid</button>
-      <view class="muted small">把它加进云数据库 families 集合某条记录的「成员openid」数组里即可。</view>
+      <button class="btn-secondary" bindtap="copyOpenid">复制 openid</button>
+      <view class="muted small">把它加进云数据库 families 集合某条记录的 memberOpenids 数组里即可。</view>
     </block>
   </view>
 
-  <view class="card" wx:if="{{!编辑中}}">
+  <view class="card" wx:if="{{!editing}}">
     <view class="card-title">家庭成员</view>
-    <view class="muted small" wx:if="{{!成员.length && !加载中 && !错误}}">还没添加任何人</view>
-    <view class="row" wx:for="{{成员}}" wx:key="_id" data-idx="{{index}}" bindtap="编辑">
+    <view class="muted small" wx:if="{{!members.length && !loading && !error}}">还没添加任何人</view>
+    <view class="row" wx:for="{{members}}" wx:key="_id" data-idx="{{index}}" bindtap="edit">
       <view>
-        <view>{{item.名称}}</view>
-        <view class="muted small">{{item.关注点.length ? item.关注点 : '无特别关注'}}</view>
+        <view>{{item.name}}</view>
+        <view class="muted small">{{item.concernLabels.length ? item.concernLabels : '无特别关注'}}</view>
       </view>
       <text class="muted">编辑 ›</text>
     </view>
-    <button class="btn-primary" bindtap="新增">添加成员</button>
+    <button class="btn-primary" bindtap="add">添加成员</button>
   </view>
 
-  <view class="card" wx:if="{{编辑中}}">
-    <view class="card-title">{{编辑中._id ? '编辑成员' : '添加成员'}}</view>
+  <view class="card" wx:if="{{editing}}">
+    <view class="card-title">{{editing._id ? '编辑成员' : '添加成员'}}</view>
     <view class="row">
       <text class="muted">称呼</text>
-      <input value="{{编辑中.名称}}" bindinput="改名" placeholder="如 爸爸"
+      <input value="{{editing.name}}" bindinput="onName" placeholder="如 爸爸"
              style="text-align:right;flex:1;margin-left:24rpx;"/>
     </view>
     <view style="margin-top:20rpx;">
       <view class="muted small">需要注意什么（可多选）</view>
       <view style="display:flex;flex-wrap:wrap;margin-top:12rpx;">
-        <view wx:for="{{允许关注点}}" wx:key="*this"
-              data-key="{{item}}" bindtap="切换关注点"
-              class="{{选中[item] ? 'bg-info level-info' : ''}}"
+        <view wx:for="{{concerns}}" wx:key="key"
+              data-key="{{item.key}}" bindtap="toggleConcern"
+              class="{{selected[item.key] ? 'bg-info level-info' : ''}}"
               style="padding:12rpx 24rpx;margin:0 16rpx 16rpx 0;border:2rpx solid #dfe5e1;border-radius:32rpx;font-size:26rpx;">
-          {{item}}
+          {{item.label}}
         </view>
       </view>
     </view>
-    <button class="btn-primary" bindtap="保存">保存</button>
-    <button class="btn-secondary" bindtap="取消">取消</button>
-    <button class="btn-secondary" wx:if="{{编辑中._id}}" bindtap="删除" style="color:#c53030;border-color:#c53030;">删除</button>
+    <button class="btn-primary" bindtap="save">保存</button>
+    <button class="btn-secondary" bindtap="cancel">取消</button>
+    <button class="btn-secondary" wx:if="{{editing._id}}" bindtap="remove" style="color:#c53030;border-color:#c53030;">删除</button>
   </view>
 </view>

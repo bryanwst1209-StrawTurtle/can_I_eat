@@ -4,60 +4,60 @@
     <view class="muted small">小字号的数字容易看错一位，差一个零结论就反了。有不对的直接改。</view>
   </view>
 
-  <view class="card" wx:if="{{识别备注.length}}">
+  <view class="card" wx:if="{{notes.length}}">
     <view class="card-title">识别时遇到的情况</view>
-    <view class="muted small" wx:for="{{识别备注}}" wx:key="*this">· {{item}}</view>
+    <view class="muted small" wx:for="{{notes}}" wx:key="*this">· {{item}}</view>
   </view>
 
   <view class="card">
     <view class="card-title">基本信息</view>
     <view class="row">
       <text class="muted">商品名称</text>
-      <input value="{{商品名称}}" data-field="商品名称" bindinput="改字段" placeholder="可不填" style="text-align:right;flex:1;margin-left:24rpx;"/>
+      <input value="{{productName}}" data-field="productName" bindinput="onField" placeholder="可不填" style="text-align:right;flex:1;margin-left:24rpx;"/>
     </view>
     <view class="row">
       <text class="muted">SC 号</text>
-      <input value="{{SC号}}" data-field="SC号" bindinput="改字段" placeholder="如 SC1061..." style="text-align:right;flex:1;margin-left:24rpx;"/>
+      <input value="{{scCode}}" data-field="scCode" bindinput="onField" placeholder="如 SC1061..." style="text-align:right;flex:1;margin-left:24rpx;"/>
     </view>
     <view class="row">
       <text class="muted">执行标准</text>
-      <input value="{{执行标准}}" data-field="执行标准" bindinput="改字段" placeholder="如 GB/T 20977" style="text-align:right;flex:1;margin-left:24rpx;"/>
+      <input value="{{standard}}" data-field="standard" bindinput="onField" placeholder="如 GB/T 20977" style="text-align:right;flex:1;margin-left:24rpx;"/>
     </view>
   </view>
 
   <view class="card">
     <view class="card-title">营养成分表的基准</view>
     <view class="muted small">这一项抄错，所有数值都会算错</view>
-    <picker mode="selector" range="{{基准选项}}" range-key="文案" value="{{基准索引}}" bindchange="改基准">
-      <view class="row"><text>基准</text><text class="level-info">{{基准选项[基准索引].文案}} ›</text></view>
+    <picker mode="selector" range="{{basisOptions}}" range-key="label" value="{{basisIndex}}" bindchange="onBasisChange">
+      <view class="row"><text>基准</text><text class="level-info">{{basisOptions[basisIndex].label}} ›</text></view>
     </picker>
-    <view class="row" wx:if="{{基准选项[基准索引].值 === 'perServing'}}">
+    <view class="row" wx:if="{{isServing}}">
       <text class="muted">每份重量</text>
-      <input type="digit" value="{{份重}}" data-field="份重" bindinput="改字段" placeholder="必填" style="text-align:right;flex:1;margin-left:24rpx;"/>
-      <text class="muted">{{份重单位}}</text>
+      <input type="digit" value="{{servingSize}}" data-field="servingSize" bindinput="onField" placeholder="必填" style="text-align:right;flex:1;margin-left:24rpx;"/>
+      <text class="muted">{{servingUnit}}</text>
     </view>
   </view>
 
   <view class="card">
     <view class="card-title">营养成分</view>
     <view class="muted small">没印在包装上的留空，留空表示「未知」，不会被当成 0</view>
-    <view class="row" wx:for="{{营养项}}" wx:key="名称">
-      <text class="muted">{{item.名称}}</text>
-      <input type="digit" value="{{item.值}}" data-idx="{{index}}" bindinput="改营养" placeholder="—" style="text-align:right;flex:1;margin-left:24rpx;"/>
-      <text class="muted" style="width:70rpx;text-align:right;">{{item.单位}}</text>
+    <view class="row" wx:for="{{rows}}" wx:key="key">
+      <text class="muted">{{item.label}}</text>
+      <input type="digit" value="{{item.value}}" data-idx="{{index}}" bindinput="onNutrient" placeholder="—" style="text-align:right;flex:1;margin-left:24rpx;"/>
+      <text class="muted" style="width:70rpx;text-align:right;">{{item.unit}}</text>
     </view>
   </view>
 
   <view class="card">
     <view class="card-title">配料表</view>
-    <textarea value="{{配料文本}}" data-field="配料文本" bindinput="改字段"
+    <textarea value="{{ingredientsText}}" data-field="ingredientsText" bindinput="onField"
               placeholder="各成分以顿号分隔" auto-height
               style="width:100%;min-height:120rpx;font-size:28rpx;"/>
   </view>
 
-  <view class="card bg-warn" wx:if="{{错误}}"><text class="level-warn">{{错误}}</text></view>
+  <view class="card bg-warn" wx:if="{{error}}"><text class="level-warn">{{error}}</text></view>
 
-  <button class="btn-primary" bindtap="确认" disabled="{{提交中}}">
-    {{提交中 ? '分析中…' : '确认无误，出结论'}}
+  <button class="btn-primary" bindtap="submit" disabled="{{submitting}}">
+    {{submitting ? '分析中…' : '确认无误，出结论'}}
   </button>
 </view>

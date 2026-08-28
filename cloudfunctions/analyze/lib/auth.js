@@ -13,9 +13,9 @@
 
 /**
  * @returns {Promise<{openid: string, familyId: string, family: object}>}
- * @throws {Error} 带 code 与 openid 字段：NO_OPENID / NO_COLLECTION / DB_ERROR / NOT_IN_FAMILY
+ * @throws {Error} 带 code 与 openid：NO_OPENID / NO_COLLECTION / DB_ERROR / NOT_IN_FAMILY
  */
-async function 取家庭归属(cloud, db) {
+async function resolveFamily(cloud, db) {
   const { OPENID } = cloud.getWXContext();
   if (!OPENID) {
     const e = new Error('未能获取调用者身份');
@@ -25,20 +25,16 @@ async function 取家庭归属(cloud, db) {
 
   let res;
   try {
-    res = await db.collection('families')
-      .where({ 成员openid: OPENID })
-      .limit(1)
-      .get();
-  } catch (原因) {
+    res = await db.collection('families').where({ memberOpenids: OPENID }).limit(1).get();
+  } catch (cause) {
     // 集合还没建时也走这里。openid 必须带出去——
     // 用户正是要拿它去 families 里建第一条记录，不给就把人卡死了。
-    const 集合不存在 = /collection.*not.*exist|DATABASE_COLLECTION_NOT_EXIST/i.test(
-      String(原因 && (原因.errMsg ||原因.message || 原因))
-    );
-    const e = new Error(集合不存在 ? 'families 集合尚未创建' : '读取 families 集合失败');
-    e.code = 集合不存在 ? 'NO_COLLECTION' : 'DB_ERROR';
+    const raw = String(cause && (cause.errMsg || cause.message || cause));
+    const noCollection = /collection.*not.*exist|DATABASE_COLLECTION_NOT_EXIST/i.test(raw);
+    const e = new Error(noCollection ? 'families 集合尚未创建' : '读取 families 集合失败');
+    e.code = noCollection ? 'NO_COLLECTION' : 'DB_ERROR';
     e.openid = OPENID;
-    e.原始错误 = String(原因 && (原因.errMsg || 原因.message || 原因));
+    e.raw = raw;
     throw e;
   }
 
@@ -53,15 +49,15 @@ async function 取家庭归属(cloud, db) {
 }
 
 /** 把鉴权异常转成给前端看的响应。openid 一律带上。 */
-function 鉴权失败响应(e) {
-  const 提示 = {
+function authFailure(e) {
+  const message = {
     NO_OPENID: '没能拿到你的微信身份，请重新进入小程序',
     NO_COLLECTION: '云数据库里还没有 families 集合，请先在云开发控制台创建',
     DB_ERROR: '读取数据库失败，请稍后重试',
     NOT_IN_FAMILY: '这个微信号还没加入家庭',
   }[e.code] || '身份校验失败';
 
-  return { ok: false, 错误码: e.code || 'AUTH_FAILED', 提示, openid: e.openid, 详情: e.原始错误 };
+  return { ok: false, errCode: e.code || 'AUTH_FAILED', message, openid: e.openid, detail: e.raw };
 }
 
-module.exports = { 取家庭归属, 鉴权失败响应 };
+module.exports = { resolveFamily, authFailure };

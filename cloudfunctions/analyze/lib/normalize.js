@@ -14,22 +14,35 @@
 const KJ_PER_KCAL = 4.184;
 
 /** 质量单位到 mg 的换算系数 */
-const MASS_TO_MG = { mg: 1, g: 1000, μg: 0.001, ug: 0.001 };
+const MASS_TO_MG = { mg: 1, g: 1000, 'μg': 0.001, ug: 0.001 };
+
+/** 各营养素的规范单位 */
+const CANONICAL_UNIT = {
+  energy: 'kJ', protein: 'g', fat: 'g', satFat: 'g', transFat: 'g',
+  carb: 'g', sugar: 'g', fiber: 'g', sodium: 'mg',
+};
+
+/** 营养素的中文显示名，只用于生成给人看的文案 */
+const NUTRIENT_LABEL = {
+  energy: '能量', protein: '蛋白质', fat: '脂肪', satFat: '饱和脂肪',
+  transFat: '反式脂肪', carb: '碳水化合物', sugar: '糖',
+  fiber: '膳食纤维', sodium: '钠',
+};
 
 /**
  * 把单个营养素的值换算成目标单位
  * @returns {number|null} 无法换算时返回 null，绝不返回 0
  */
-function convertUnit(值, 单位, 目标单位) {
-  if (typeof 值 !== 'number' || !isFinite(值)) return null;
-  if (单位 === 目标单位) return 值;
+function convertUnit(value, unit, targetUnit) {
+  if (typeof value !== 'number' || !isFinite(value)) return null;
+  if (unit === targetUnit) return value;
 
-  if (目标单位 === 'kJ' && 单位 === 'kcal') return 值 * KJ_PER_KCAL;
-  if (目标单位 === 'kcal' && 单位 === 'kJ') return 值 / KJ_PER_KCAL;
+  if (targetUnit === 'kJ' && unit === 'kcal') return value * KJ_PER_KCAL;
+  if (targetUnit === 'kcal' && unit === 'kJ') return value / KJ_PER_KCAL;
 
-  const from = MASS_TO_MG[单位];
-  const to = MASS_TO_MG[目标单位];
-  if (from != null && to != null) return (值 * from) / to;
+  const from = MASS_TO_MG[unit];
+  const to = MASS_TO_MG[targetUnit];
+  if (from != null && to != null) return (value * from) / to;
 
   return null;
 }
@@ -37,77 +50,72 @@ function convertUnit(值, 单位, 目标单位) {
 /**
  * 归一化营养成分表
  *
- * @param {object} 标签 extractLabel 的输出（经用户确认后）
- * @param {{类型: 'per100g'|'per100ml'|'perServing', 份重: number, 份重单位: 'g'|'ml'}} 标签.基准
- * @param {Object<string, {值: number|null, 单位: string}>} 标签.营养成分
- * @returns {{基准: 'per100g'|'per100ml', 营养成分: object, 换算说明: string[], 无法归一: string[]}}
+ * @param {object} label extractLabel 的输出（经用户确认后）
+ * @param {{type: 'per100g'|'per100ml'|'perServing', servingSize: number, servingUnit: 'g'|'ml'}} label.basis
+ * @param {Object<string, {value: number|null, unit: string}>} label.nutrients
+ * @returns {{basis: 'per100g'|'per100ml'|null, nutrients: object, conversions: string[], unresolved: string[]}}
  */
-function normalize(标签) {
-  const 基准 = (标签 && 标签.基准) || {};
-  const 原始 = (标签 && 标签.营养成分) || {};
-  const 换算说明 = [];
-  const 无法归一 = [];
+function normalize(label) {
+  const basis = (label && label.basis) || {};
+  const source = (label && label.nutrients) || {};
+  const conversions = [];
+  const unresolved = [];
 
-  // 确定目标基准：每份的情况下由份重单位决定落到 100g 还是 100ml
-  let 目标基准;
-  let 倍率;
+  let targetBasis;
+  let factor;
 
-  if (基准.类型 === 'per100g') {
-    目标基准 = 'per100g';
-    倍率 = 1;
-  } else if (基准.类型 === 'per100ml') {
-    目标基准 = 'per100ml';
-    倍率 = 1;
-  } else if (基准.类型 === 'perServing') {
-    const 份重 = 基准.份重;
-    if (typeof 份重 !== 'number' || !isFinite(份重) || 份重 <= 0) {
+  if (basis.type === 'per100g') {
+    targetBasis = 'per100g';
+    factor = 1;
+  } else if (basis.type === 'per100ml') {
+    targetBasis = 'per100ml';
+    factor = 1;
+  } else if (basis.type === 'perServing') {
+    const size = basis.servingSize;
+    if (typeof size !== 'number' || !isFinite(size) || size <= 0) {
       return {
-        基准: null,
-        营养成分: {},
-        换算说明: [],
-        无法归一: ['标注为「每份」但未识别到份重，无法归一到 100g/100ml 基准'],
+        basis: null,
+        nutrients: {},
+        conversions: [],
+        unresolved: ['标注为「每份」但未识别到份重，无法归一到 100g/100ml 基准'],
       };
     }
-    目标基准 = 基准.份重单位 === 'ml' ? 'per100ml' : 'per100g';
-    倍率 = 100 / 份重;
-    换算说明.push(
-      `原标注基准为每份 ${份重}${基准.份重单位 || 'g'}，各项数值乘以 ${倍率.toFixed(3)} 换算为每 100${基准.份重单位 || 'g'}`
+    const unit = basis.servingUnit === 'ml' ? 'ml' : 'g';
+    targetBasis = unit === 'ml' ? 'per100ml' : 'per100g';
+    factor = 100 / size;
+    conversions.push(
+      `原标注基准为每份 ${size}${unit}，各项数值乘以 ${factor.toFixed(3)} 换算为每 100${unit}`
     );
   } else {
     return {
-      基准: null,
-      营养成分: {},
-      换算说明: [],
-      无法归一: ['未识别到营养成分表的标注基准（每100g / 每100ml / 每份）'],
+      basis: null,
+      nutrients: {},
+      conversions: [],
+      unresolved: ['未识别到营养成分表的标注基准（每100g / 每100ml / 每份）'],
     };
   }
 
-  // 各营养素的规范单位
-  const 规范单位 = {
-    能量: 'kJ', 蛋白质: 'g', 脂肪: 'g', 饱和脂肪: 'g', 反式脂肪: 'g',
-    碳水化合物: 'g', 糖: 'g', 膳食纤维: 'g', 钠: 'mg',
-  };
-
-  const 营养成分 = {};
-  for (const [名称, 项] of Object.entries(原始)) {
+  const nutrients = {};
+  for (const [key, item] of Object.entries(source)) {
+    const name = NUTRIENT_LABEL[key] || key;
     // 缺失即声明，绝不当作 0（docs/design.md §8）
-    if (!项 || 项.值 == null) {
-      无法归一.push(`未识别到${名称}的数值`);
+    if (!item || item.value == null) {
+      unresolved.push(`未识别到${name}的数值`);
       continue;
     }
-    const 目标单位 = 规范单位[名称] || 项.单位;
-    const 换算后 = convertUnit(项.值, 项.单位, 目标单位);
-    if (换算后 == null) {
-      无法归一.push(`${名称}的单位「${项.单位}」无法换算为${目标单位}`);
+    const targetUnit = CANONICAL_UNIT[key] || item.unit;
+    const converted = convertUnit(item.value, item.unit, targetUnit);
+    if (converted == null) {
+      unresolved.push(`${name}的单位「${item.unit}」无法换算为${targetUnit}`);
       continue;
     }
-    营养成分[名称] = {
-      值: Math.round(换算后 * 倍率 * 1000) / 1000,
-      单位: 目标单位,
+    nutrients[key] = {
+      value: Math.round(converted * factor * 1000) / 1000,
+      unit: targetUnit,
     };
   }
 
-  return { 基准: 目标基准, 营养成分, 换算说明, 无法归一 };
+  return { basis: targetBasis, nutrients, conversions, unresolved };
 }
 
-module.exports = { normalize, convertUnit, KJ_PER_KCAL };
+module.exports = { normalize, convertUnit, KJ_PER_KCAL, CANONICAL_UNIT, NUTRIENT_LABEL };

@@ -12,13 +12,13 @@ const { verifySC } = require('../cloudfunctions/analyze/lib/sc');
  * 待办：从家里橱柜翻几个包装，把 SC 号抄进下面的数组，删掉 skip。
  * 如果出现校验不通过，先怀疑本实现而不是包装。
  */
-const 真实样本 = [
+const REAL_SAMPLES = [
   // 'SC10632010200123',
 ];
 
-test('真实包装上的 SC 号应当全部校验通过', { skip: 真实样本.length === 0 && '尚未录入真实样本' }, () => {
-  for (const sc of 真实样本) {
+test('真实包装上的 SC 号应当全部校验通过', { skip: REAL_SAMPLES.length === 0 && '尚未录入真实样本' }, () => {
+  for (const sc of REAL_SAMPLES) {
     const r = verifySC(sc);
-    assert.strictEqual(r.结论, 'valid', `${sc} 校验未通过：${r.说明}`);
+    assert.strictEqual(r.result, 'valid', `${sc} 校验未通过：${r.message}`);
   }
 });

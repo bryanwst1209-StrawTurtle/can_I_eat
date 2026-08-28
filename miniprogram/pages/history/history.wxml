@@ -1,15 +1,15 @@
 <view class="container">
-  <view class="card bg-warn" wx:if="{{错误}}"><text class="level-warn">{{错误}}</text></view>
+  <view class="card bg-warn" wx:if="{{error}}"><text class="level-warn">{{error}}</text></view>
 
   <view class="card">
     <view class="card-title">扫过的东西</view>
-    <view class="muted small" wx:if="{{!记录.length && !加载中 && !错误}}">还没有记录</view>
-    <view class="row" wx:for="{{记录}}" wx:key="_id" data-id="{{item._id}}" bindtap="打开">
+    <view class="muted small" wx:if="{{!records.length && !loading && !error}}">还没有记录</view>
+    <view class="row" wx:for="{{records}}" wx:key="_id" data-id="{{item._id}}" bindtap="open">
       <view style="flex:1;">
-        <view>{{item.商品名称 || '未命名商品'}}</view>
-        <view class="muted small">{{item.时间文案}}</view>
+        <view>{{item.productName || '未命名商品'}}</view>
+        <view class="muted small">{{item.timeText}}</view>
       </view>
-      <text class="level-{{item.判定.总体等级}} small">{{item.判定.总体文案}}</text>
+      <text class="level-{{item.judgement.overallLevel}} small">{{item.judgement.overallText}}</text>
     </view>
   </view>
 </view>

@@ -6,103 +6,112 @@
  */
 
 const cloud = require('wx-server-sdk');
-const { 取家庭归属, 鉴权失败响应 } = require('./lib/auth');
+const { resolveFamily, authFailure } = require('./lib/auth');
 const { normalize } = require('./lib/normalize');
 const { evaluate } = require('./lib/evaluate');
-const { 规则: 默认规则 } = require('./lib/rules');
-const { parseSC, verifySC, decodeSC } = require('./lib/sc');
+const { RULES, CONCERNS } = require('./lib/rules');
+const { verifySC, decodeSC } = require('./lib/sc');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
 exports.main = async (event) => {
-  const { 标签, fileID } = event || {};
-  if (!标签) return { ok: false, 错误码: 'NO_LABEL', 提示: '未收到标签数据' };
+  const { label, fileID } = event || {};
+  if (!label) return { ok: false, errCode: 'NO_LABEL', message: '未收到标签数据' };
 
   // 身份与家庭归属：服务端反查，不信任前端
-  let 归属;
+  let ctx;
   try {
-    归属 = await 取家庭归属(cloud, db);
+    ctx = await resolveFamily(cloud, db);
   } catch (e) {
-    return 鉴权失败响应(e);
+    return authFailure(e);
   }
 
-  // 只取本家庭的成员，规则表为全局共享
-  const [成员结果, 规则结果] = await Promise.all([
-    db.collection('members').where({ familyId: 归属.familyId }).get().catch(() => ({ data: [] })),
+  // 只取本家庭的成员；规则表为全局共享
+  const [memberRes, ruleRes] = await Promise.all([
+    db.collection('members').where({ familyId: ctx.familyId }).get().catch(() => ({ data: [] })),
     db.collection('rules').get().catch(() => ({ data: [] })),
   ]);
 
-  const 成员 = (成员结果.data || []).map((m) => ({ 名称: m.名称, 关注点: m.关注点 || [] }));
-  const 规则 = (规则结果.data || []).length > 0 ? 规则结果.data : 默认规则;
+  const concernLabel = Object.fromEntries(CONCERNS.map((c) => [c.key, c.label]));
+  const members = (memberRes.data || []).map((m) => ({
+    name: m.name,
+    concerns: m.concerns || [],
+    concernLabels: (m.concerns || []).map((k) => concernLabel[k] || k),
+  }));
+  const rules = (ruleRes.data || []).length > 0 ? ruleRes.data : RULES;
 
-  // 营养判定
-  const 归一 = normalize(标签);
-  const 判定 = evaluate({ 归一, 配料: 标签.配料 || [], 成员, 规则 });
+  const normalized = normalize(label);
+  const judgement = evaluate({
+    normalized,
+    ingredients: label.ingredients || [],
+    members,
+    rules,
+  });
 
-  // SC 核验：两层边界不可混淆
-  const SC核验 = 做SC核验(标签.SC号, await 取表());
+  const scCheck = checkSC(label.scCode, await loadTables());
 
   // 存历史快照（含原图 fileID，便于事后回溯是抄错还是判错）
-  const 记录 = {
-    familyId: 归属.familyId,
-    创建者openid: 归属.openid,
-    fileID: fileID || null,
-    商品名称: 标签.商品名称 || null,
-    标签,
-    归一,
-    判定,
-    SC核验,
-    创建时间: db.serverDate(),
-  };
   let scanId = null;
   try {
-    const 写入 = await db.collection('scans').add({ data: 记录 });
-    scanId = 写入._id;
+    const written = await db.collection('scans').add({
+      data: {
+        familyId: ctx.familyId,
+        createdBy: ctx.openid,
+        fileID: fileID || null,
+        productName: label.productName || null,
+        label,
+        normalized,
+        judgement,
+        scCheck,
+        createdAt: db.serverDate(),
+      },
+    });
+    scanId = written._id;
   } catch (e) {
     // 存历史失败不应挡住用户看结果
     console.error('写入 scans 失败', e);
   }
 
-  return { ok: true, scanId, 判定, SC核验, 归一 };
+  return { ok: true, scanId, judgement, scCheck, normalized };
 };
 
-function 做SC核验(SC号, 表) {
-  if (!SC号) {
-    return { 有编号: false, 说明: '包装上未识别到食品生产许可证编号（SC 号）' };
+function checkSC(scCode, tables) {
+  if (!scCode) {
+    return { hasCode: false, message: '包装上未识别到食品生产许可证编号（SC 号）' };
   }
-  const 校验 = verifySC(SC号);
-  const 结果 = { 有编号: true, 原文: SC号, 结论: 校验.结论, 说明: 校验.说明 };
+  const verified = verifySC(scCode);
+  const out = { hasCode: true, raw: scCode, result: verified.result, message: verified.message };
 
   // 只有校验码算法能得出否定结论；查表仅用于展示（docs/design.md §6）
-  if (校验.结论 === 'valid') {
-    const 解码 = decodeSC(校验.解析, 表);
-    结果.产地 = 解码.产地;
-    结果.类别 = 解码.类别;
-    结果.未命中 = 解码.未命中;
-    结果.数据版本 = 解码.数据版本;
+  if (verified.result === 'valid') {
+    const decoded = decodeSC(verified.parsed, tables);
+    out.origin = decoded.origin;
+    out.category = decoded.category;
+    out.misses = decoded.misses;
+    out.dataVersion = decoded.dataVersion;
   }
-  return 结果;
+  return out;
 }
 
-async function 取表() {
+async function loadTables() {
   try {
     const [r, c] = await Promise.all([
       db.collection('regions').limit(1000).get(),
       db.collection('categories').limit(1000).get(),
     ]);
     const regions = {};
-    for (const row of r.data || []) regions[row.代码] = row.名称;
+    for (const row of r.data || []) regions[row.code] = row.name;
     const categories = {};
-    for (const row of c.data || []) categories[row.代码] = row.名称;
-    const 版本 = (r.data || [])[0] || null;
+    for (const row of c.data || []) categories[row.code] = row.name;
+    const first = (r.data || [])[0] || null;
     return {
       regions,
       categories,
-      版本: 版本 ? { 来源: 版本.来源, 日期: 版本.抓取日期 } : null,
+      version: first ? { source: first.source, date: first.fetchedAt } : null,
     };
   } catch (e) {
     console.error('读取区划/类别表失败', e);
-    return { regions: {}, categories: {}, 版本: null };
+    return { regions: {}, categories: {}, version: null };
   }
 }

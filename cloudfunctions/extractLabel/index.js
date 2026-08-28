@@ -6,60 +6,63 @@
  */
 
 const cloud = require('wx-server-sdk');
-const { 提取指令 } = require('./lib/prompt');
-const { 校验标签 } = require('./lib/schema');
-const { 识别图片, 抽取JSON } = require('./lib/model');
+const { EXTRACT_PROMPT } = require('./lib/prompt');
+const { validateLabel } = require('./lib/schema');
+const { recognize, extractJSON } = require('./lib/model');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const 最大重试 = 1;
+const MAX_RETRY = 1;
 
 exports.main = async (event) => {
   const { fileID } = event || {};
   if (!fileID) {
-    return { ok: false, 错误码: 'NO_FILE', 提示: '未收到图片' };
+    return { ok: false, errCode: 'NO_FILE', message: '未收到图片' };
   }
 
-  // 下载云存储中的图片
-  let 图片Buffer;
+  let imageBuffer;
   try {
     const res = await cloud.downloadFile({ fileID });
-    图片Buffer = res.fileContent;
+    imageBuffer = res.fileContent;
   } catch (e) {
-    return { ok: false, 错误码: 'DOWNLOAD_FAILED', 提示: '图片读取失败，请重新拍摄', 详情: String(e.message || e) };
+    return {
+      ok: false, errCode: 'DOWNLOAD_FAILED',
+      message: '图片读取失败，请重新拍摄',
+      detail: String(e.message || e),
+    };
   }
 
-  const 失败记录 = [];
+  const failures = [];
 
-  for (let 次 = 0; 次 <= 最大重试; 次++) {
-    let 原始文本;
+  for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
+    let text;
     try {
-      原始文本 = await 识别图片(图片Buffer, 提取指令);
+      text = await recognize(imageBuffer, EXTRACT_PROMPT);
     } catch (e) {
-      失败记录.push(`第${次 + 1}次调用失败：${e.message}`);
+      failures.push(`第${attempt + 1}次调用失败：${e.message}`);
       continue;
     }
 
-    const 解析 = 抽取JSON(原始文本);
-    if (!解析) {
-      失败记录.push(`第${次 + 1}次：模型返回的不是合法 JSON`);
+    const parsed = extractJSON(text);
+    if (!parsed) {
+      failures.push(`第${attempt + 1}次：模型返回的不是合法 JSON`);
       continue;
     }
 
-    const 校验 = 校验标签(解析);
-    if (!校验.ok) {
-      失败记录.push(`第${次 + 1}次：schema 校验未通过（${校验.错误.join('；')}）`);
+    const checked = validateLabel(parsed);
+    if (!checked.ok) {
+      failures.push(`第${attempt + 1}次：schema 校验未通过（${checked.errors.join('；')}）`);
       continue;
     }
 
-    return { ok: true, 标签: 校验.标签, 尝试次数: 次 + 1 };
+    return { ok: true, label: checked.label, attempts: attempt + 1 };
   }
 
   // 两次都失败：如实报错，转手动录入。不返回任何猜测结果。
   return {
     ok: false,
-    错误码: 'EXTRACT_FAILED',
-    提示: '这张照片没能识别出来，可以重拍一张，或者手动填写关键数值',
-    详情: 失败记录,
+    errCode: 'EXTRACT_FAILED',
+    message: '这张照片没能识别出来，可以重拍一张，或者手动填写关键数值',
+    detail: failures,
   };
 };
