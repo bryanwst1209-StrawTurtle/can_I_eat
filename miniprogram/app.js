@@ -1,6 +1,6 @@
 App({
   globalData: {
-    云环境: '', // 部署时填入云开发环境 ID
+    云环境: 'cloudbase-d0g5ogyub05b69f8f',
     当前标签: null,
     当前结果: null,
   },
