@@ -14,7 +14,7 @@
     </block>
   </view>
 
-  <view class="card" wx:if="{{!editing}}">
+  <view class="card" wx:if="{{!editing && !error}}">
     <view class="card-title">家庭成员</view>
     <view class="muted small" wx:if="{{!members.length && !loading && !error}}">还没添加任何人</view>
     <view class="row" wx:for="{{members}}" wx:key="_id" data-idx="{{index}}" bindtap="edit">
@@ -27,7 +27,7 @@
     <button class="btn-primary" bindtap="add">添加成员</button>
   </view>
 
-  <view class="card" wx:if="{{editing}}">
+  <view class="card" wx:if="{{editing && !error}}">
     <view class="card-title">{{editing._id ? '编辑成员' : '添加成员'}}</view>
     <view class="row">
       <text class="muted">称呼</text>
