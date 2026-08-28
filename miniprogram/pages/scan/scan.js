@@ -44,6 +44,7 @@ Page({
           scanning: false,
           error: {
             message: (result && result.message) || '识别失败',
+            detail: result && Array.isArray(result.detail) ? result.detail.join('\n') : (result && result.detail),
             canManual: true,
             fileID: uploaded.fileID,
           },
@@ -52,6 +53,7 @@ Page({
       }
 
       // 识别结果必须经用户确认才能出结论（docs/design.md §2.3）
+      if (result.totalMs) console.log(`识别耗时 ${(result.totalMs / 1000).toFixed(1)} 秒`);
       app.globalData.currentLabel = result.label;
       app.globalData.currentFileID = uploaded.fileID;
       this.setData({ scanning: false });

@@ -18,8 +18,17 @@
 const https = require('https');
 const { URL } = require('url');
 
-/** 云函数本身的执行超时要大于这个值，否则函数先被掐断，报错信息都看不到 */
-const TIMEOUT_MS = 50000;
+/**
+ * 单次请求超时。
+ *
+ * 必须留出重试和函数自身开销的余量：云函数执行超时 60 秒，
+ * 若单次就给 50 秒，一次重试必然把总时长顶穿，重试反而保证了失败。
+ * 25 秒 × 2 次 + 下载图片和编码的开销，仍在 60 秒内。
+ */
+const TIMEOUT_MS = 25000;
+
+/** 整个 extractLabel 的时间预算，留 8 秒给函数收尾，避免被平台硬掐断 */
+const TOTAL_BUDGET_MS = 52000;
 
 function readConfig() {
   const { MODEL_BASE_URL, MODEL_API_KEY, MODEL_NAME } = process.env;
@@ -78,8 +87,9 @@ function endpoint(baseUrl) {
  * @param {string} prompt 提取指令
  * @returns {Promise<string>} 模型返回的原始文本
  */
-async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg') {
+async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg', timeoutMs = TIMEOUT_MS) {
   const cfg = readConfig();
+  const startedAt = Date.now();
   const dataUrl = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
 
   const { status, text } = await postJSON(
@@ -88,6 +98,9 @@ async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg') {
     {
       model: cfg.MODEL_NAME,
       temperature: 0, // 抄写任务不需要创造性，且要可复现
+      // 深度思考模型会先推理再输出，对「抄写」这种任务毫无收益，只增加几十秒延迟。
+      // 火山方舟用 thinking.type 关闭；其他厂商忽略这个字段即可。
+      ...(process.env.MODEL_THINKING === 'disabled' ? { thinking: { type: 'disabled' } } : {}),
       messages: [{
         role: 'user',
         content: [
@@ -95,8 +108,10 @@ async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg') {
           { type: 'image_url', image_url: { url: dataUrl } },
         ],
       }],
-    }
+    },
+    timeoutMs
   );
+  const elapsedMs = Date.now() - startedAt;
 
   if (status < 200 || status >= 300) {
     throw new Error(`模型接口返回 ${status}：${text.slice(0, 200)}`);
@@ -115,7 +130,7 @@ async function recognize(imageBuffer, prompt, mimeType = 'image/jpeg') {
   if (typeof content !== 'string' || content.length === 0) {
     throw new Error('模型返回内容为空');
   }
-  return content;
+  return { content, elapsedMs };
 }
 
 /**
@@ -149,12 +164,18 @@ async function selfTest() {
     return { ok: false, stage: 'env', message: e.message };
   }
 
+  const startedAt = Date.now();
   try {
     const { status, text } = await postJSON(
       endpoint(cfg.MODEL_BASE_URL),
       { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.MODEL_API_KEY}` },
-      { model: cfg.MODEL_NAME, max_tokens: 8, messages: [{ role: 'user', content: '回复 ok' }] },
-      15000
+      {
+        model: cfg.MODEL_NAME,
+        max_tokens: 8,
+        ...(process.env.MODEL_THINKING === 'disabled' ? { thinking: { type: 'disabled' } } : {}),
+        messages: [{ role: 'user', content: '回复 ok' }],
+      },
+      20000
     );
 
     if (status === 401 || status === 403) {
@@ -170,6 +191,9 @@ async function selfTest() {
     return {
       ok: true,
       message: '模型接通',
+      // 纯文本往返耗时。识图会明显更慢，但这个数字能先看出模型快慢的量级
+      elapsedMs: Date.now() - startedAt,
+      thinking: process.env.MODEL_THINKING === 'disabled' ? '已关闭深度思考' : '未关闭深度思考（如果模型支持，建议设 MODEL_THINKING=disabled）',
       runtime: process.version,
       baseUrl: cfg.MODEL_BASE_URL,
       model: cfg.MODEL_NAME,
@@ -181,4 +205,4 @@ async function selfTest() {
   }
 }
 
-module.exports = { recognize, extractJSON, readConfig, selfTest, postJSON, TIMEOUT_MS };
+module.exports = { recognize, extractJSON, readConfig, selfTest, postJSON, TIMEOUT_MS, TOTAL_BUDGET_MS };
