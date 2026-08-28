@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "miniprogram/",
   "cloudfunctionRoot": "cloudfunctions/",
-  "appid": "填入你的小程序 AppID",
+  "appid": "wxff737fda5f6cb137",
   "projectname": "can_I_eat",
   "description": "家用食品标签解读小程序",
   "setting": {
