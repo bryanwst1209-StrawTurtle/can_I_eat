@@ -64,6 +64,12 @@ npm test
    在云函数 `extractLabel` 的配置里设三个环境变量：
    `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME`。
    **不要把 key 写进代码。**
+
+   同一个配置页里把 **执行超时从默认的 3 秒改成 60 秒**——
+   模型识别一张图要 5–20 秒，3 秒必然被掐断，且报错都看不全。
+
+   配好后不要急着拍照，先在云开发控制台用 `{"ping": true}` 调用 `extractLabel` 自检，
+   它会区分「环境变量没填 / 密钥被拒 / 模型名不存在 / 网络不通」四种失败。
 4. **建数据库集合**：`families`、`members`、`scans`、`rules`、`regions`、`categories`。
    权限全部设为**「仅管理端可读写」**——前端不直连数据库，所有读写走云函数。
 5. **建家庭记录**：在 `families` 集合手动加一条，`成员openid` 字段填家人的 openid 数组。
