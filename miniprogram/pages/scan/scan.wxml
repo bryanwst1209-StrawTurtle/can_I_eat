@@ -8,7 +8,13 @@
   </view>
 
   <view class="card" wx:if="{{scanning}}">
-    <view class="muted">{{progress}}</view>
+    <view>{{progress}}</view>
+    <view class="muted small" style="margin-top:8rpx;">
+      已用 {{elapsed}} 秒<text wx:if="{{hint}}"> · {{hint}}</text>
+    </view>
+    <view style="height:8rpx;background:#eef1ef;border-radius:4rpx;margin-top:16rpx;overflow:hidden;">
+      <view style="height:100%;background:#2f7a4d;width:{{elapsed >= 10 ? 95 : elapsed * 9.5}}%;transition:width 1s linear;"></view>
+    </view>
   </view>
 
   <view class="card bg-warn" wx:if="{{error}}">
