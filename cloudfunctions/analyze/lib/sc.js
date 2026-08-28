@@ -11,6 +11,24 @@
 
 const { mod11_10 } = require('./checkdigit');
 
+/**
+ * 校验码算法是否已用真实样本验证通过。
+ *
+ * 现状：false。
+ * 实测真证 SC10631011602563（上海好味来生物科技有限公司，经国家企业信用信息
+ * 公示系统可查，许可明细含果汁型碳酸饮料）末位为 3，而本实现算出 4。
+ * 试过 ISO 7064 MOD 11,10 的多个变体与几种加权模型，均算不出 3，
+ * 说明本实现与国标不一致，或 SC 用的根本不是这套算法。
+ *
+ * 在这个标志翻成 true 之前，verifySC 一律不产出「可能系伪造」这类否定结论——
+ * 用一个错误的算法去指认一个合法产品造假，是本项目能犯的最严重的错误，
+ * 比不给结论严重得多（docs/design.md §6、§8）。
+ *
+ * 翻成 true 的条件：test/sc.real-samples.test.js 里至少有 5 个来源可查的真证
+ * 全部通过。样本不够就不要动它。
+ */
+const CHECKDIGIT_VERIFIED = false;
+
 /** SC 号形如 SC + 14 位数字，大小写与空格均容忍 */
 const SC_PATTERN = /^SC(\d{14})$/;
 
@@ -37,23 +55,43 @@ function parseSC(raw) {
 }
 
 /**
- * 第一层：校验码验证。这是唯一能产出否定结论的检查。
- * @returns {{result: 'valid'|'invalid'|'malformed', message: string, parsed?: object}}
+ * 第一层：校验码验证。
+ *
+ * 只有在 CHECKDIGIT_VERIFIED 为 true 时才会产出否定结论。
+ * 算法未经真实样本验证时，一律返回 'unverified'——
+ * 格式对不对能说，真伪不能说。
+ *
+ * @returns {{result: 'valid'|'invalid'|'unverified'|'malformed', message: string, parsed?: object, computed?: number}}
  */
 function verifySC(raw) {
   const parsed = parseSC(raw);
   if (!parsed.ok) {
     return { result: 'malformed', message: parsed.reason };
   }
+
   const expected = mod11_10(parsed.body);
-  if (expected !== parsed.checkDigit) {
+  const matches = expected === parsed.checkDigit;
+
+  if (!CHECKDIGIT_VERIFIED) {
+    return {
+      result: 'unverified',
+      message: '编号格式正确（SC 加 14 位数字）。校验位的算法尚未用足够的真实证件验证，因此本工具不对编号真伪下结论',
+      parsed,
+      computed: expected, // 仅供开发排查，不展示给用户
+      matches,
+    };
+  }
+
+  if (!matches) {
     return {
       result: 'invalid',
       message: `该编号校验位不符（末位应为 ${expected}，实际为 ${parsed.checkDigit}），可能录入有误或系伪造`,
       parsed,
+      computed: expected,
+      matches,
     };
   }
-  return { result: 'valid', message: '编号格式与校验位均有效', parsed };
+  return { result: 'valid', message: '编号格式与校验位均有效', parsed, computed: expected, matches };
 }
 
 /**
@@ -87,4 +125,4 @@ function decodeSC(parsed, tables) {
   };
 }
 
-module.exports = { parseSC, verifySC, decodeSC, SC_PATTERN };
+module.exports = { parseSC, verifySC, decodeSC, SC_PATTERN, CHECKDIGIT_VERIFIED };

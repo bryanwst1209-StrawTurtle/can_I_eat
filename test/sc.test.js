@@ -15,16 +15,23 @@ test('校验码算法：同样的输入总得到同样的输出', () => {
   assert.ok(a >= 0 && a <= 9, '校验码必须是一位数字');
 });
 
-test('往返：算出的校验码能通过验证', () => {
+test('往返：算出的校验码与实现自洽', () => {
+  // 注意：这只证明算法自洽，不证明它与国标一致。
+  // 真实证件的验证在 sc.real-samples.test.js，目前结论是不一致。
   for (const body of ['1061101010000', '2010203040506', '1234567890123']) {
     const sc = makeValidSC(body);
-    assert.strictEqual(verifySC(sc).result, 'valid', `${sc} 应当校验通过`);
+    assert.strictEqual(verifySC(sc).matches, true, `${sc} 应与本实现自洽`);
   }
 });
 
-test('改动任意一位，校验应当失败', () => {
+test('算法未验证时，即使校验位对不上也不判为 invalid', () => {
+  // CHECKDIGIT_VERIFIED 为 false 期间的 fail-safe 行为：
+  // 只说格式，不说真伪。改对算法并验证后，这个测试要改回断言 invalid。
   const sc = makeValidSC('1061101010000');
-  assert.strictEqual(verifySC('SC2' + sc.slice(3)).result, 'invalid');
+  const r = verifySC('SC2' + sc.slice(3));
+  assert.strictEqual(r.result, 'unverified');
+  assert.strictEqual(r.matches, false, '内部仍应记录校验位不符，供开发排查');
+  assert.ok(!r.message.includes('伪造'), '未验证的算法不得输出「伪造」字样');
 });
 
 test('格式不合法的输入返回 malformed，而不是 invalid', () => {
@@ -35,9 +42,13 @@ test('格式不合法的输入返回 malformed，而不是 invalid', () => {
 });
 
 test('容忍空格与小写', () => {
+  // 断言解析成功即可，不断言真伪结论——后者取决于 CHECKDIGIT_VERIFIED
   const sc = makeValidSC('1061101010000');
-  assert.strictEqual(verifySC(sc.toLowerCase()).result, 'valid');
-  assert.strictEqual(verifySC(` ${sc.slice(0, 5)} ${sc.slice(5)} `).result, 'valid');
+  for (const variant of [sc.toLowerCase(), ` ${sc.slice(0, 5)} ${sc.slice(5)} `]) {
+    const r = verifySC(variant);
+    assert.notStrictEqual(r.result, 'malformed', `${variant} 应当能被解析`);
+    assert.strictEqual(r.matches, true);
+  }
 });
 
 test('解析：拆出类别码、区划码、顺序码', () => {

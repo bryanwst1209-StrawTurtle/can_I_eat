@@ -54,7 +54,7 @@
     </block>
     <block wx:else>
       <view class="muted small">{{scCheck.raw}}</view>
-      <view class="{{scCheck.result === 'valid' ? 'level-ok' : 'level-warn'}}" style="margin-top:8rpx;">
+      <view class="{{scCheck.result === 'valid' ? 'level-ok' : (scCheck.result === 'unverified' ? 'muted' : 'level-warn')}}" style="margin-top:8rpx;">
         {{scCheck.message}}
       </view>
       <view class="muted small" wx:if="{{scCheck.origin}}">标称产地：{{scCheck.origin}}</view>

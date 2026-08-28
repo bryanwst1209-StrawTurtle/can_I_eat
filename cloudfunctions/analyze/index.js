@@ -84,7 +84,8 @@ function checkSC(scCode, tables) {
   const out = { hasCode: true, raw: scCode, result: verified.result, message: verified.message };
 
   // 只有校验码算法能得出否定结论；查表仅用于展示（docs/design.md §6）
-  if (verified.result === 'valid') {
+  // unverified 表示算法待验证，此时同样正常解码展示，只是不下真伪结论
+  if (verified.result === 'valid' || verified.result === 'unverified') {
     const decoded = decodeSC(verified.parsed, tables);
     out.origin = decoded.origin;
     out.category = decoded.category;
